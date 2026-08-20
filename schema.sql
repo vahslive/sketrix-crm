@@ -55,6 +55,12 @@ CREATE TABLE IF NOT EXISTS bookings (
 
   receipt_token TEXT,     -- random token used in the public receipt link
 
+  -- Full structured list of every TV on this booking, e.g.
+  -- [{"size":"size_51_65","dismount":"dismount_yes","bracket":"bracket_fixed","wall":"wall_standard","wires":"wires_exposed"}, ...]
+  -- The columns above (dismount/size/bracket/wall/wires) always mirror the
+  -- highest-priced TV in this list, for anything that only reads one TV.
+  tvs_json TEXT,
+
   FOREIGN KEY(claimed_by) REFERENCES users(id)
 );
 
