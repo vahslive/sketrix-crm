@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Join Mount It Right</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --paper:#FFFFFF; --mist:#F5F5F6; --ink:#0A0A0C; --ink-soft:#6B6B70; --line:rgba(10,10,12,0.09); --signal:#2F5EFF; --level:#2FB37C; --danger:#A32D2D; --display:'Inter Tight',sans-serif; --body:'Inter',sans-serif; }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ background:var(--mist); color:var(--ink); font-family:var(--body); padding:24px; }
+  .card{ max-width:400px; margin:60px auto; background:var(--paper); border-radius:20px; padding:32px; border:1px solid var(--line); }
+  h1{ font-family:var(--display); font-size:20px; margin-bottom:6px; }
+  .sub{ color:var(--ink-soft); font-size:13.5px; margin-bottom:24px; }
+  label{ display:block; font-size:12.5px; font-weight:600; color:var(--ink-soft); margin:14px 0 5px; }
+  input{ width:100%; padding:12px 14px; font-size:15px; border:1.5px solid var(--line); border-radius:10px; background:var(--mist); }
+  button{ width:100%; margin-top:22px; background:var(--ink); color:var(--paper); border:none; font-weight:600; font-size:14.5px; padding:14px; border-radius:100px; cursor:pointer; }
+  #msg{ margin-top:16px; font-size:13.5px; text-align:center; display:none; }
+  #msg.ok{ color:var(--level); display:block; }
+  #msg.err{ color:var(--danger); display:block; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Set up your account</h1>
+  <p class="sub" id="sub">Choose a password to finish joining Mount It Right.</p>
+
+  <label>Password</label>
+  <input type="password" id="password" placeholder="Choose a password">
+
+  <label>Confirm password</label>
+  <input type="password" id="password2" placeholder="Type it again">
+
+  <button onclick="accept()">Create my account</button>
+  <div id="msg"></div>
+</div>
+
+<script>
+  const token = new URLSearchParams(location.search).get('token');
+  if(!token){
+    document.getElementById('sub').textContent = 'This link is missing its invite code.';
+  }
+
+  async function accept(){
+    const password = document.getElementById('password').value;
+    const password2 = document.getElementById('password2').value;
+    const msg = document.getElementById('msg');
+
+    if(!token){ return; }
+    if(password.length < 6){
+      msg.textContent = 'Password should be at least 6 characters.';
+      msg.className = 'err';
+      return;
+    }
+    if(password !== password2){
+      msg.textContent = "Passwords don't match.";
+      msg.className = 'err';
+      return;
+    }
+
+    try{
+      const res = await fetch('/api/invites/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+      });
+      const data = await res.json();
+      if(data.ok){
+        sessionStorage.setItem('authToken', data.token);
+        sessionStorage.setItem('authUser', JSON.stringify(data.user));
+        msg.textContent = "You're in! Redirecting…";
+        msg.className = 'ok';
+        setTimeout(() => {
+          location.href = data.user.role === 'admin' ? '/admin.html' : '/master.html';
+        }, 1200);
+      } else {
+        msg.textContent = data.error || 'Something went wrong.';
+        msg.className = 'err';
+      }
+    } catch(err){
+      msg.textContent = 'Could not reach the server.';
+      msg.className = 'err';
+    }
+  }
+</script>
+
+</body>
+</html>

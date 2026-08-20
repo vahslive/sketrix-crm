@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Receipt — Mount It Right</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FFFFFF; --mist:#F5F5F6; --ink:#0A0A0C; --ink-soft:#6B6B70;
+    --line: rgba(10,10,12,0.09); --signal:#2F5EFF; --level:#2FB37C;
+    --display:'Inter Tight',sans-serif; --body:'Inter',sans-serif; --mono:'IBM Plex Mono',monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ background:var(--mist); color:var(--ink); font-family:var(--body); padding:24px; }
+  .card{ max-width:480px; margin:40px auto; background:var(--paper); border-radius:20px; padding:32px; border:1px solid var(--line); }
+  .badge{ width:52px; height:52px; border-radius:50%; background:var(--level); display:flex; align-items:center; justify-content:center; margin-bottom:20px; }
+  h1{ font-family:var(--display); font-size:22px; margin-bottom:4px; }
+  .sub{ color:var(--ink-soft); font-size:13.5px; margin-bottom:28px; }
+  .row{ display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; }
+  .row:last-child{ border-bottom:none; }
+  .row .label{ color:var(--ink-soft); }
+  .total{ display:flex; justify-content:space-between; align-items:center; margin-top:20px; padding-top:20px; border-top:1.5px solid var(--ink); }
+  .total .amt{ font-family:var(--display); font-size:28px; font-weight:800; }
+  #err{ display:none; text-align:center; color:var(--ink-soft); }
+</style>
+</head>
+<body>
+
+<div class="card" id="card">
+  <div class="badge">
+    <svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M4 12l5 5L20 6" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+  <h1>Job complete</h1>
+  <div class="sub" id="dateSub">Mount It Right</div>
+  <div id="rows"></div>
+  <div class="total">
+    <span>Total</span>
+    <span class="amt" id="totalAmt">$0</span>
+  </div>
+</div>
+
+<div id="err" class="card">Receipt not found. If you think this is a mistake, text us back.</div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const token = params.get('t');
+
+  const LABELS = {
+    dismount: { dismount_yes: 'Old TV removal', dismount_no: null },
+    size: {
+      size_under50: 'TV mount — up to 50″', size_51_65: 'TV mount — 51–65″',
+      size_65_2tech: 'TV mount — 65″+ (2 techs)', size_65_1tech: 'TV mount — 65″+ (1 tech)',
+    },
+    bracket: { bracket_have: null, bracket_fixed: 'Fixed mount', bracket_tilt: 'Tilting mount', bracket_full: 'Full-motion mount' },
+    wall: { wall_standard: null, wall_brick: 'Brick/concrete anchors', wall_stucco: 'Stucco anchors' },
+    wires: { wires_exposed: null, wires_external: 'External cord concealment', wires_inwall: 'In-wall cord concealment' },
+  };
+  const ADDON_LABELS = { addon_soundbar: 'Soundbar install', addon_fireplace: 'Above-fireplace mount', addon_shelf: 'Wall shelf' };
+
+  async function load(){
+    if(!token){ showError(); return; }
+    try{
+      const res = await fetch('/api/receipt/' + token);
+      if(!res.ok) throw new Error('not found');
+      const data = await res.json();
+      render(data.receipt);
+    } catch(err){
+      showError();
+    }
+  }
+
+  function showError(){
+    document.getElementById('card').style.display = 'none';
+    document.getElementById('err').style.display = 'block';
+  }
+
+  function render(r){
+    document.getElementById('dateSub').textContent =
+      (r.booking_date || '') + (r.booking_time ? ' · ' + r.booking_time : '') + (r.address ? ' · ' + r.address : '');
+
+    const rows = [];
+    for(const key of ['dismount','size','bracket','wall','wires']){
+      const label = LABELS[key][r[key]];
+      if(label) rows.push(label);
+    }
+    (JSON.parse(r.addons || '[]')).forEach(a => { if(ADDON_LABELS[a]) rows.push(ADDON_LABELS[a]); });
+
+    document.getElementById('rows').innerHTML = rows.map(label =>
+      `<div class="row"><span class="label">${label}</span></div>`
+    ).join('') + `<div class="row"><span class="label">Payment method</span><span>${(r.payment_method||'—')}</span></div>`;
+
+    const total = r.actual_total != null ? r.actual_total : r.total_price;
+    document.getElementById('totalAmt').textContent = '$' + total;
+  }
+
+  load();
+</script>
+
+</body>
+</html>
