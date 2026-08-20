@@ -113,6 +113,9 @@
   @media (max-width:900px){ .stats{ grid-template-columns:1fr 1fr; } }
   @media (max-width:480px){ .stats{ grid-template-columns:1fr 1fr; gap:10px; } .stat-card{ padding:14px 16px; } .stat-card .val{ font-size:21px; } }
   .stat-card{ background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:18px 20px; }
+  .stat-card.clickable{ cursor:pointer; transition:border-color .15s, transform .1s; }
+  .stat-card.clickable:hover{ border-color:var(--signal); }
+  .stat-card.clickable:active{ transform:scale(0.98); }
   .stat-card .lbl{ font-size:12px; color:var(--ink-soft); font-weight:600; margin-bottom:8px; }
   .stat-card .val{ font-family:var(--display); font-size:26px; font-weight:800; }
   .stat-card .val.mono{ font-family:var(--mono); }
@@ -188,22 +191,23 @@
   .tv-item .tv-remove{ background:none; border:none; color:var(--ink-soft); font-size:11.5px; cursor:pointer; text-decoration:underline; padding:0; }
   .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
 
-  .detail-modal{ padding:0; max-width:420px; overflow:hidden; }
-  .detail-map-wrap{ width:100%; height:180px; background:var(--mist); }
+  .detail-page{ background:var(--paper); border:1px solid var(--line); border-radius:20px; overflow:hidden; max-width:640px; }
+  .detail-map-wrap{ width:100%; height:280px; background:var(--mist); }
   .detail-map-wrap iframe{ width:100%; height:100%; border:0; display:block; }
   .detail-map-wrap.no-map{ display:flex; align-items:center; justify-content:center; color:var(--ink-soft); font-size:13px; }
-  .detail-price{ font-family:var(--display); font-size:26px; font-weight:800; margin-bottom:6px; }
+  .detail-page-body{ padding:28px 32px 32px; }
+  .detail-price{ font-family:var(--display); font-size:32px; font-weight:800; margin-bottom:8px; }
   .detail-address{
-    display:inline-flex; align-items:center; gap:6px; color:var(--signal); font-weight:600; font-size:13.5px;
+    display:inline-flex; align-items:center; gap:6px; color:var(--signal); font-weight:600; font-size:14.5px;
     text-decoration:none; margin-bottom:4px;
   }
   .detail-address:hover{ text-decoration:underline; }
-  .detail-meta{ font-size:12.5px; color:var(--ink-soft); margin-bottom:18px; margin-top:6px; }
-  .detail-section{ border-top:1px solid var(--line); padding-top:14px; margin-top:14px; }
+  .detail-meta{ font-size:13px; color:var(--ink-soft); margin-bottom:22px; margin-top:8px; }
+  .detail-section{ border-top:1px solid var(--line); padding-top:16px; margin-top:16px; }
   .detail-label{ font-size:11px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px; }
-  .detail-row{ display:flex; justify-content:space-between; font-size:13.5px; padding:6px 0; }
+  .detail-row{ display:flex; justify-content:space-between; font-size:14px; padding:7px 0; }
   .detail-row span{ color:var(--ink-soft); }
-  .detail-notes{ font-size:13.5px; line-height:1.5; color:var(--ink); }
+  .detail-notes{ font-size:14px; line-height:1.5; color:var(--ink); }
   .detail-tv-block{ background:var(--mist); border-radius:12px; padding:12px 14px; margin-bottom:8px; }
   .detail-tv-block .detail-row{ padding:4px 0; }
   .detail-tv-title{ font-family:var(--display); font-weight:700; font-size:13px; margin-bottom:4px; }
@@ -265,15 +269,16 @@
       </div>
 
       <div class="stats">
-        <div class="stat-card"><div class="lbl">New / unclaimed</div><div class="val" id="statNew">0</div></div>
-        <div class="stat-card"><div class="lbl">In progress</div><div class="val" id="statActive">0</div></div>
-        <div class="stat-card"><div class="lbl">Completed</div><div class="val" id="statDone">0</div></div>
-        <div class="stat-card"><div class="lbl">Revenue (completed)</div><div class="val mono" id="statRevenue">$0</div></div>
+        <div class="stat-card clickable" onclick="filterFromStat('new')"><div class="lbl">New / unclaimed</div><div class="val" id="statNew">0</div></div>
+        <div class="stat-card clickable" onclick="filterFromStat('in_progress')"><div class="lbl">In progress</div><div class="val" id="statActive">0</div></div>
+        <div class="stat-card clickable" onclick="filterFromStat('completed')"><div class="lbl">Completed</div><div class="val" id="statDone">0</div></div>
+        <div class="stat-card clickable" onclick="switchView('payouts')"><div class="lbl">Revenue (completed)</div><div class="val mono" id="statRevenue">$0</div></div>
       </div>
 
       <div class="filters" id="filters">
         <button data-filter="all" class="active">All</button>
         <button data-filter="new">New</button>
+        <button data-filter="in_progress">In Progress</button>
         <button data-filter="claimed">Claimed</button>
         <button data-filter="en_route">En Route</button>
         <button data-filter="completed">Completed</button>
@@ -310,6 +315,51 @@
           <h3>Pending invites</h3>
           <div id="invitesList"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- JOB DETAIL VIEW (full page) -->
+    <div class="view" id="view-detail">
+      <div class="page-head">
+        <button class="btn-outline" onclick="switchView('bookings')">← Back to bookings</button>
+      </div>
+      <div class="detail-page">
+        <div id="detailMapWrap" class="detail-map-wrap"></div>
+        <div class="detail-page-body">
+          <div class="detail-price" id="detailPrice">$0</div>
+          <a id="detailAddress" class="detail-address" target="_blank" rel="noopener"></a>
+          <div class="detail-meta" id="detailMeta"></div>
+
+          <div class="detail-section" id="detailServices"></div>
+
+          <div class="detail-section" id="detailNotesWrap" style="display:none;">
+            <div class="detail-label">Notes</div>
+            <div class="detail-notes" id="detailNotes"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAYOUTS VIEW (full page) -->
+    <div class="view" id="view-payouts">
+      <div class="page-head">
+        <div>
+          <h1>Payouts</h1>
+          <div class="sub">What's been earned, paid out, and what's left.</div>
+        </div>
+        <button class="btn-outline" onclick="switchView('bookings')">← Back to bookings</button>
+      </div>
+
+      <div class="stats">
+        <div class="stat-card"><div class="lbl">Completed jobs</div><div class="val" id="payoutJobs">0</div></div>
+        <div class="stat-card"><div class="lbl">Total revenue</div><div class="val mono" id="payoutRevenue">$0</div></div>
+        <div class="stat-card"><div class="lbl">Paid to masters</div><div class="val mono" id="payoutPaid">$0</div></div>
+        <div class="stat-card"><div class="lbl">Kept by business</div><div class="val mono" id="payoutKept">$0</div></div>
+      </div>
+
+      <div class="panel">
+        <h3>By master</h3>
+        <div id="payoutsByMaster"></div>
       </div>
     </div>
 
@@ -410,29 +460,6 @@
   </div>
 </div>
 
-<!-- JOB DETAIL MODAL -->
-<div class="modal-overlay" id="detailModalOverlay">
-  <div class="modal detail-modal">
-    <div id="detailMapWrap" class="detail-map-wrap"></div>
-    <div style="padding:22px 24px 24px;">
-      <div class="detail-price" id="detailPrice">$0</div>
-      <a id="detailAddress" class="detail-address" target="_blank" rel="noopener"></a>
-      <div class="detail-meta" id="detailMeta"></div>
-
-      <div class="detail-section" id="detailServices"></div>
-
-      <div class="detail-section" id="detailNotesWrap" style="display:none;">
-        <div class="detail-label">Notes</div>
-        <div class="detail-notes" id="detailNotes"></div>
-      </div>
-
-      <div class="modal-actions">
-        <button class="btn-cancel" onclick="closeDetailModal()">Close</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- INVITE MODAL -->
 <div class="modal-overlay" id="inviteModalOverlay">
   <div class="modal">
@@ -508,6 +535,7 @@
     document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
     document.getElementById('view-' + view).classList.add('active');
     closeSidebar();
+    if(view === 'payouts') renderPayouts();
   }
 
   // ---------------- MOBILE SIDEBAR ----------------
@@ -553,8 +581,44 @@
     renderBookings();
   });
 
+  function filterFromStat(filter){
+    switchView('bookings');
+    activeFilter = filter;
+    [...document.querySelectorAll('#filters button')].forEach(b => b.classList.toggle('active', b.dataset.filter === filter));
+    renderBookings();
+  }
+
   function esc(str){
     return String(str ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  function renderPayouts(){
+    const done = allBookings.filter(b => b.status === 'completed');
+    const revenue = done.reduce((sum,b) => sum + (b.actual_total ?? b.total_price ?? 0), 0);
+    const paid = done.reduce((sum,b) => sum + (b.master_earning || 0), 0);
+    const kept = revenue - paid;
+
+    document.getElementById('payoutJobs').textContent = done.length;
+    document.getElementById('payoutRevenue').textContent = '$' + revenue;
+    document.getElementById('payoutPaid').textContent = '$' + paid;
+    document.getElementById('payoutKept').textContent = '$' + kept;
+
+    const byMaster = {};
+    done.forEach(b => {
+      const key = b.claimed_by_name || `Master #${b.claimed_by}`;
+      if(!byMaster[key]) byMaster[key] = { jobs: 0, earned: 0 };
+      byMaster[key].jobs += 1;
+      byMaster[key].earned += (b.master_earning || 0);
+    });
+
+    const entries = Object.entries(byMaster).sort((a, b) => b[1].earned - a[1].earned);
+    document.getElementById('payoutsByMaster').innerHTML = entries.length
+      ? entries.map(([name, d]) => `
+        <div class="member-row">
+          <div><div class="member-name">${esc(name)}</div><div class="member-sub">${d.jobs} job${d.jobs === 1 ? '' : 's'} completed</div></div>
+          <div class="price">$${d.earned}</div>
+        </div>`).join('')
+      : `<div class="member-sub">No completed jobs yet.</div>`;
   }
 
   const ADDON_LABELS = { addon_soundbar:'Soundbar', addon_fireplace:'Above fireplace', addon_shelf:'Wall shelf' };
@@ -665,14 +729,15 @@
       mapWrap.innerHTML = 'No location on file for this address';
     }
 
-    document.getElementById('detailModalOverlay').classList.add('show');
-  }
-  function closeDetailModal(){
-    document.getElementById('detailModalOverlay').classList.remove('show');
+    switchView('detail');
   }
 
   function renderBookings(){
-    const filtered = activeFilter === 'all' ? allBookings : allBookings.filter(b => b.status === activeFilter);
+    let filtered;
+    if(activeFilter === 'all') filtered = allBookings;
+    else if(activeFilter === 'in_progress') filtered = allBookings.filter(b => ['claimed','en_route'].includes(b.status));
+    else filtered = allBookings.filter(b => b.status === activeFilter);
+
     const tbody = document.getElementById('bookingsBody');
     document.getElementById('bookingsEmpty').style.display = filtered.length ? 'none' : 'block';
 
