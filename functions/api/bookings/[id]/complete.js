@@ -28,8 +28,8 @@ export async function onRequestPost({ request, env, params }) {
 
   const finalTotal = actualTotal != null ? actualTotal : booking.total_price;
   // Default master commission is 65% — override per-deployment with the
-  // MASTER_COMMISSION_RATE environment variable (e.g. "0.6") if needed.
-  const rate = env.MASTER_COMMISSION_RATE ? parseFloat(env.MASTER_COMMISSION_RATE) : 0.65;
+  // MASTER_COMMISSION_RATE environment variable (e.g. "0.4") if needed.
+  const rate = env.MASTER_COMMISSION_RATE ? parseFloat(env.MASTER_COMMISSION_RATE) : 0.30;
   const earning = Math.round(finalTotal * rate);
 
   await env.DB.prepare(
