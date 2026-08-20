@@ -255,7 +255,7 @@
       <div class="table-card">
         <table>
           <thead>
-            <tr><th>When</th><th>Customer</th><th>Address</th><th>Total</th><th>Status</th><th>Source</th><th></th></tr>
+            <tr><th>When</th><th>Customer</th><th>Address</th><th>Services</th><th>Total</th><th>Status</th><th>Source</th><th></th></tr>
           </thead>
           <tbody id="bookingsBody"></tbody>
         </table>
@@ -309,6 +309,43 @@
       <div><label>Date</label><input type="date" id="f-date"></div>
       <div><label>Time</label><input type="text" id="f-time" placeholder="9:00 AM"></div>
     </div>
+
+    <div class="field-row">
+      <label>TV size</label>
+      <select id="f-size">
+        <option value="">— Not specified —</option>
+        <option value="size_under50">Under 50″</option>
+        <option value="size_51_65">51–65″</option>
+        <option value="size_65_2tech">65″+ (2 techs)</option>
+        <option value="size_65_1tech">65″+ (1 tech)</option>
+      </select>
+    </div>
+    <div class="field-row two">
+      <div>
+        <label>Dismount old TV?</label>
+        <select id="f-dismount">
+          <option value="dismount_no">No</option>
+          <option value="dismount_yes">Yes (+$49)</option>
+        </select>
+      </div>
+      <div>
+        <label>Wall type</label>
+        <select id="f-wall">
+          <option value="wall_standard">Drywall</option>
+          <option value="wall_brick">Brick/concrete</option>
+          <option value="wall_stucco">Stucco</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <label>Add-ons</label>
+      <div style="display:flex; gap:14px; font-size:13px; padding-top:4px;">
+        <label style="display:flex; align-items:center; gap:6px; font-weight:500;"><input type="checkbox" id="f-addon-soundbar" style="width:auto;"> Soundbar</label>
+        <label style="display:flex; align-items:center; gap:6px; font-weight:500;"><input type="checkbox" id="f-addon-fireplace" style="width:auto;"> Fireplace</label>
+        <label style="display:flex; align-items:center; gap:6px; font-weight:500;"><input type="checkbox" id="f-addon-shelf" style="width:auto;"> Shelf</label>
+      </div>
+    </div>
+
     <div class="field-row"><label>Total price ($)</label><input type="number" id="f-total" placeholder="149"></div>
     <div class="field-row"><label>Notes</label><textarea id="f-notes" rows="2" placeholder="Anything worth remembering"></textarea></div>
     <div class="modal-actions">
@@ -442,6 +479,19 @@
     return String(str ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   }
 
+  const ADDON_LABELS = { addon_soundbar:'Soundbar', addon_fireplace:'Above fireplace', addon_shelf:'Wall shelf' };
+  function serviceSummary(b){
+    const parts = [];
+    if(b.size) parts.push(b.size.replace('size_','').replace(/_/g,' '));
+    if(b.dismount === 'dismount_yes') parts.push('dismount old TV');
+    if(b.wall && b.wall !== 'wall_standard') parts.push(b.wall.replace('wall_',''));
+    if(b.bracket && b.bracket !== 'bracket_have') parts.push(b.bracket.replace('bracket_','').replace('_',' '));
+    try{
+      (JSON.parse(b.addons || '[]')).forEach(a => { if(ADDON_LABELS[a]) parts.push(ADDON_LABELS[a]); });
+    } catch{}
+    return parts.join(', ') || '—';
+  }
+
   function renderBookings(){
     const filtered = activeFilter === 'all' ? allBookings : allBookings.filter(b => b.status === activeFilter);
     const tbody = document.getElementById('bookingsBody');
@@ -452,6 +502,7 @@
         <td>${b.booking_date ? esc(b.booking_date) + (b.booking_time ? ' · ' + esc(b.booking_time) : '') : '<span style="color:var(--ink-soft)">Not scheduled</span>'}</td>
         <td><div class="cell-name">${esc(b.name) || '—'}</div><div class="cell-sub">${esc(b.phone) || ''}</div></td>
         <td>${esc(b.address) || '—'}</td>
+        <td style="max-width:220px;"><div class="cell-name" style="font-weight:500;">${esc(serviceSummary(b))}</div>${b.notes ? `<div class="cell-sub">${esc(b.notes)}</div>` : ''}</td>
         <td class="price">$${b.actual_total ?? b.total_price ?? 0}</td>
         <td><span class="badge ${b.status}">${b.status.replace('_',' ')}</span></td>
         <td style="font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);">${esc(b.source)}</td>
@@ -480,6 +531,11 @@
   function closeAddModal(){ document.getElementById('addModalOverlay').classList.remove('show'); }
 
   async function submitAddBooking(){
+    const addons = [];
+    if(document.getElementById('f-addon-soundbar').checked) addons.push('addon_soundbar');
+    if(document.getElementById('f-addon-fireplace').checked) addons.push('addon_fireplace');
+    if(document.getElementById('f-addon-shelf').checked) addons.push('addon_shelf');
+
     const payload = {
       source: document.getElementById('f-source').value,
       name: document.getElementById('f-name').value || null,
@@ -487,6 +543,10 @@
       address: document.getElementById('f-address').value || null,
       date: document.getElementById('f-date').value || null,
       time: document.getElementById('f-time').value || null,
+      size: document.getElementById('f-size').value || null,
+      dismount: document.getElementById('f-dismount').value || null,
+      wall: document.getElementById('f-wall').value || null,
+      addons,
       total: Number(document.getElementById('f-total').value) || 0,
       notes: document.getElementById('f-notes').value || null,
     };
