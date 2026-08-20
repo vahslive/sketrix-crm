@@ -134,6 +134,10 @@
   .detail-section{ border-top:1px solid var(--line); padding-top:14px; margin-top:14px; }
   .detail-label{ font-size:11px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px; }
   .detail-row{ display:flex; justify-content:space-between; font-size:13.5px; padding:6px 0; }
+  .detail-tv-block{ background:var(--mist); border-radius:12px; padding:12px 14px; margin-bottom:8px; }
+  .detail-tv-block .detail-row{ padding:4px 0; }
+  .detail-tv-title{ font-family:var(--display); font-weight:700; font-size:13px; margin-bottom:4px; }
+  .earn-line{ font-size:12.5px; color:var(--level); font-weight:600; margin-top:2px; }
   .detail-row span{ color:var(--ink-soft); }
   .detail-notes{ font-size:13.5px; line-height:1.5; color:var(--ink); }
   .btn-cancel{ background:none; border:none; color:var(--ink-soft); font-weight:600; font-size:13.5px; }
@@ -248,6 +252,7 @@
     <div id="detailMapWrap" class="detail-map-wrap"></div>
     <div style="padding:22px 24px 24px;">
       <div class="detail-price" id="detailPrice">$0</div>
+      <div class="earn-line" id="detailEarn" style="margin-bottom:8px;"></div>
       <a id="detailAddress" class="detail-address" target="_blank" rel="noopener"></a>
       <div class="detail-meta" id="detailMeta"></div>
 
@@ -260,6 +265,7 @@
 
       <div class="modal-actions">
         <button class="btn-cancel" onclick="closeDetailModal()">Close</button>
+        <button class="btn" id="detailAcceptBtn" style="display:none;" onclick="acceptFromDetail()">Accept job</button>
       </div>
     </div>
   </div>
@@ -349,22 +355,42 @@
     return chips.map(c => `<span class="svc-chip">${esc(c)}</span>`).join('');
   }
 
-  // Full, clearly-labeled breakdown for the job detail modal.
-  function serviceBreakdown(b){
+  function tvFieldsHtml(tv){
     const rows = [
-      ['TV size', SIZE_LABELS[b.size] || null],
-      ['Old TV removal', b.dismount === 'dismount_yes' ? 'Yes' : null],
-      ['Bracket', b.bracket && b.bracket !== 'bracket_have' ? BRACKET_LABELS[b.bracket] : null],
-      ['Wall type', b.wall && b.wall !== 'wall_standard' ? WALL_LABELS[b.wall] : null],
-      ['Cords', b.wires && b.wires !== 'wires_exposed' ? WIRES_LABELS[b.wires] : null],
+      ['TV size', SIZE_LABELS[tv.size] || null],
+      ['Old TV removal', tv.dismount === 'dismount_yes' ? 'Yes' : null],
+      ['Bracket', tv.bracket && tv.bracket !== 'bracket_have' ? BRACKET_LABELS[tv.bracket] : null],
+      ['Wall type', tv.wall && tv.wall !== 'wall_standard' ? WALL_LABELS[tv.wall] : null],
+      ['Cords', tv.wires && tv.wires !== 'wires_exposed' ? WIRES_LABELS[tv.wires] : null],
     ].filter(([, v]) => v);
+    return rows.length
+      ? rows.map(([label, val]) => `<div class="detail-row"><span>${label}</span><strong>${esc(val)}</strong></div>`).join('')
+      : '<div class="detail-row"><span>Standard mount</span></div>';
+  }
+
+  // Full, clearly-labeled breakdown for the job detail modal — grouped
+  // per TV when the booking has more than one, falling back to a single
+  // block for older/manual bookings that never stored the full list.
+  function serviceBreakdown(b){
+    let tvs = null;
+    try{ tvs = JSON.parse(b.tvs_json || 'null'); } catch{}
+
+    let html;
+    if(tvs && tvs.length > 1){
+      html = tvs.map((tv, i) => `
+        <div class="detail-tv-block">
+          <div class="detail-tv-title">TV ${i + 1}</div>
+          ${tvFieldsHtml(tv)}
+        </div>
+      `).join('');
+    } else {
+      html = tvFieldsHtml(b);
+    }
 
     let addonNames = [];
     try{ addonNames = (JSON.parse(b.addons || '[]')).map(a => ADDON_LABELS[a]).filter(Boolean); } catch{}
+    if(addonNames.length) html += `<div class="detail-row" style="margin-top:6px;"><span>Add-ons</span><strong>${esc(addonNames.join(', '))}</strong></div>`;
 
-    let html = rows.map(([label, val]) => `<div class="detail-row"><span>${label}</span><strong>${esc(val)}</strong></div>`).join('');
-    if(addonNames.length) html += `<div class="detail-row"><span>Add-ons</span><strong>${esc(addonNames.join(', '))}</strong></div>`;
-    if(!html) html = '<div class="detail-row"><span>Standard mount</span></div>';
     return html;
   }
 
@@ -377,28 +403,38 @@
     renderMine();
   }
 
+  // Mirrors the server-side default in complete.js — if you change
+  // MASTER_COMMISSION_RATE there, update this too so projections stay accurate.
+  const MASTER_COMMISSION_RATE = 0.30;
+
   function renderAll(){
     const active = allBookings.filter(b => b.status !== 'cancelled');
     document.getElementById('countAll').textContent = active.filter(b => b.status === 'new').length;
     document.getElementById('allJobsEmpty').style.display = active.length ? 'none' : 'block';
 
-    document.getElementById('allJobsList').innerHTML = active.map(b => `
+    document.getElementById('allJobsList').innerHTML = active.map(b => {
+      const price = b.actual_total ?? b.total_price ?? 0;
+      const earn = Math.round(price * MASTER_COMMISSION_RATE);
+      return `
       <div class="job-card">
         <div class="job-top">
           <div>
             <div class="job-addr">${esc(b.address) || 'No address'}</div>
-            <div class="job-meta">${b.booking_date ? esc(b.booking_date) + (b.booking_time ? ' · ' + esc(b.booking_time) : '') : 'Not scheduled'} · <span class="badge ${b.status}">${b.status.replace('_',' ')}</span></div>
+            <div class="job-meta">${b.booking_date ? esc(b.booking_date) + (b.booking_time ? ' · ' + esc(b.booking_time) : '') : 'Not scheduled'} · <span class="badge ${b.status}">${b.claimed_by_name && b.status !== 'new' ? esc(b.status.replace('_',' ')) + ' · ' + esc(b.claimed_by_name) : b.status.replace('_',' ')}</span></div>
           </div>
-          <div class="job-price">$${b.actual_total ?? b.total_price ?? 0}</div>
+          <div style="text-align:right;">
+            <div class="job-price">$${price}</div>
+            ${b.status === 'new' ? `<div class="earn-line">You'd earn $${earn}</div>` : ''}
+          </div>
         </div>
         <div class="job-chips">${serviceChips(b)}</div>
-        ${b.claimed_by ? `<div class="job-note">Claimed by teammate #${b.claimed_by}</div>` : ''}
         <div class="job-actions">
           <button class="btn-outline" onclick="openJobDetail(${b.id})">Details</button>
           ${b.status === 'new' ? `<button class="btn" onclick="claimJob(${b.id})">Accept job</button>` : ''}
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   function renderMine(){
@@ -413,14 +449,20 @@
     document.getElementById('statEarned').textContent = '$' + earned;
     document.getElementById('mineJobsEmpty').style.display = mine.length ? 'none' : 'block';
 
-    document.getElementById('mineJobsList').innerHTML = mine.map(b => `
+    document.getElementById('mineJobsList').innerHTML = mine.map(b => {
+      const price = b.actual_total ?? b.total_price ?? 0;
+      const earn = b.status === 'completed' ? (b.master_earning || 0) : Math.round(price * MASTER_COMMISSION_RATE);
+      return `
       <div class="job-card">
         <div class="job-top">
           <div>
             <div class="job-addr">${esc(b.address) || 'No address'}</div>
-            <div class="job-meta">${esc(b.name) || ''} · ${esc(b.phone) || ''} · <span class="badge ${b.status}">${b.status.replace('_',' ')}</span></div>
+            <div class="job-meta">${esc(b.name) || ''} · ${b.phone ? `<a href="tel:${esc(b.phone)}" onclick="event.stopPropagation()" style="color:var(--signal);">${esc(b.phone)}</a>` : ''} · <span class="badge ${b.status}">${b.status.replace('_',' ')}</span></div>
           </div>
-          <div class="job-price">$${b.actual_total ?? b.total_price ?? 0}${b.status === 'completed' ? ` <span style="font-size:11px; color:var(--ink-soft); font-weight:500;">(you: $${b.master_earning||0})</span>` : ''}</div>
+          <div style="text-align:right;">
+            <div class="job-price">$${price}</div>
+            <div class="earn-line">${b.status === 'completed' ? 'You earned' : "You'll earn"} $${earn}</div>
+          </div>
         </div>
         <div class="job-chips">${serviceChips(b)}</div>
         ${b.eta_text ? `<div class="job-note">ETA sent: ${esc(b.eta_text)}</div>` : ''}
@@ -430,7 +472,8 @@
           ${b.status === 'en_route' ? `<button class="btn" onclick="openCompleteModal(${b.id})">Mark complete</button>` : ''}
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   // ---------------- JOB DETAIL MODAL ----------------
@@ -446,22 +489,30 @@
     return isIOS ? `https://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`;
   }
 
+  let detailBookingId = null;
+
   function openJobDetail(id){
     const b = allBookings.find(x => x.id === id);
     if(!b) return;
+    detailBookingId = id;
 
-    document.getElementById('detailPrice').textContent = '$' + (b.actual_total ?? b.total_price ?? 0);
+    const price = b.actual_total ?? b.total_price ?? 0;
+    document.getElementById('detailPrice').textContent = '$' + price;
+
+    const earn = b.status === 'completed' ? (b.master_earning || 0) : Math.round(price * MASTER_COMMISSION_RATE);
+    document.getElementById('detailEarn').textContent =
+      (b.status === 'completed' ? 'You earned' : (b.claimed_by === authUser.id ? "You'll earn" : "You'd earn")) + ' $' + earn;
 
     const addrEl = document.getElementById('detailAddress');
     addrEl.textContent = (b.address || 'No address on file') + '  →';
     addrEl.href = mapsUrlFor(b);
 
     const metaParts = [];
-    if(b.name) metaParts.push(b.name);
-    if(b.phone) metaParts.push(b.phone);
-    if(b.booking_date) metaParts.push(b.booking_date + (b.booking_time ? ' · ' + b.booking_time : ''));
-    metaParts.push(b.status.replace('_',' '));
-    document.getElementById('detailMeta').textContent = metaParts.join(' · ');
+    if(b.name) metaParts.push(esc(b.name));
+    if(b.phone) metaParts.push(`<a href="tel:${esc(b.phone)}" style="color:var(--signal); font-weight:600;">${esc(b.phone)}</a>`);
+    if(b.booking_date) metaParts.push(esc(b.booking_date) + (b.booking_time ? ' · ' + esc(b.booking_time) : ''));
+    metaParts.push(esc(b.claimed_by_name && b.status !== 'new' ? b.status.replace('_',' ') + ' · ' + b.claimed_by_name : b.status.replace('_',' ')));
+    document.getElementById('detailMeta').innerHTML = metaParts.join(' · ');
 
     document.getElementById('detailServices').innerHTML =
       `<div class="detail-label">Services</div>` + serviceBreakdown(b);
@@ -473,6 +524,8 @@
     } else {
       notesWrap.style.display = 'none';
     }
+
+    document.getElementById('detailAcceptBtn').style.display = b.status === 'new' ? 'inline-block' : 'none';
 
     const mapWrap = document.getElementById('detailMapWrap');
     if(b.lat != null && b.lng != null){
@@ -486,6 +539,12 @@
     }
 
     document.getElementById('detailModalOverlay').classList.add('show');
+  }
+
+  async function acceptFromDetail(){
+    if(!detailBookingId) return;
+    await claimJob(detailBookingId);
+    closeDetailModal();
   }
   function closeDetailModal(){
     document.getElementById('detailModalOverlay').classList.remove('show');
