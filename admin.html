@@ -27,10 +27,11 @@
   #authGate{ min-height:100vh; display:flex; align-items:center; justify-content:center; color:var(--ink-soft); font-size:14px; }
 
   /* ---------- shell ---------- */
-  #app{ display:none; min-height:100vh; }
+  #app{ display:none; flex-direction:column; min-height:100vh; }
   .sidebar{
     width:var(--sidebar-w); background:var(--paper); border-right:1px solid var(--line);
     position:fixed; top:0; left:0; bottom:0; display:flex; flex-direction:column; padding:22px 16px;
+    z-index:50; transition:transform .25s ease;
   }
   .logo{ font-family:var(--display); font-weight:800; font-size:17px; display:flex; align-items:center; gap:8px; padding:6px 8px 24px; }
   .logo .dot{ width:7px; height:7px; border-radius:50%; background:var(--signal); box-shadow:0 0 0 5px var(--signal-soft); }
@@ -54,9 +55,44 @@
   .logout-btn{ background:none; border:none; color:var(--ink-soft); font-size:12.5px; font-weight:600; padding:8px; width:100%; text-align:left; margin-top:4px; border-radius:8px; }
   .logout-btn:hover{ background:var(--mist); color:var(--danger); }
 
-  .main{ margin-left:var(--sidebar-w); padding:32px 36px 60px; max-width:1180px; }
+  /* Desktop: content centers in the space to the right of the sidebar,
+     instead of being pinned flush against it with dead space on the right. */
+  .main{
+    margin-left:var(--sidebar-w); min-height:100vh;
+    display:flex; justify-content:center;
+    padding:32px 36px 60px;
+  }
+  .main-inner{ width:100%; max-width:1040px; }
   .view{ display:none; }
   .view.active{ display:block; }
+
+  /* Mobile top bar + hamburger + off-canvas sidebar */
+  .mobile-bar{ display:none; }
+  .sidebar-overlay{ display:none; }
+
+  @media (max-width:860px){
+    .mobile-bar{
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      position:sticky; top:0; z-index:40; background:var(--paper); border-bottom:1px solid var(--line);
+      padding:14px 18px;
+    }
+    .mobile-bar .logo{ padding:0; font-size:16px; }
+    .menu-btn{
+      background:none; border:1.5px solid var(--line); border-radius:10px; width:38px; height:38px;
+      display:flex; align-items:center; justify-content:center; flex:none;
+    }
+
+    .sidebar{ transform:translateX(-100%); box-shadow:0 0 40px rgba(10,10,12,0.15); }
+    .sidebar.open{ transform:translateX(0); }
+
+    .sidebar-overlay{
+      display:none; position:fixed; inset:0; background:rgba(10,10,12,0.35); z-index:45;
+    }
+    .sidebar-overlay.show{ display:block; }
+
+    .main{ margin-left:0; padding:20px 16px 48px; display:block; }
+    .main-inner{ max-width:none; }
+  }
 
   .page-head{ display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:28px; flex-wrap:wrap; gap:14px; }
   .page-head h1{ font-family:var(--display); font-size:24px; font-weight:800; letter-spacing:-0.01em; }
@@ -75,6 +111,7 @@
   /* ---------- stat cards ---------- */
   .stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px; }
   @media (max-width:900px){ .stats{ grid-template-columns:1fr 1fr; } }
+  @media (max-width:480px){ .stats{ grid-template-columns:1fr 1fr; gap:10px; } .stat-card{ padding:14px 16px; } .stat-card .val{ font-size:21px; } }
   .stat-card{ background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:18px 20px; }
   .stat-card .lbl{ font-size:12px; color:var(--ink-soft); font-weight:600; margin-bottom:8px; }
   .stat-card .val{ font-family:var(--display); font-size:26px; font-weight:800; }
@@ -89,8 +126,8 @@
   .filters button.active{ background:var(--signal-soft); border-color:var(--signal); color:var(--signal); }
 
   /* ---------- table ---------- */
-  .table-card{ background:var(--paper); border:1px solid var(--line); border-radius:16px; overflow:hidden; }
-  table{ width:100%; border-collapse:collapse; }
+  .table-card{ background:var(--paper); border:1px solid var(--line); border-radius:16px; overflow-x:auto; }
+  table{ width:100%; border-collapse:collapse; min-width:640px; }
   th{ text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-soft); padding:12px 18px; border-bottom:1px solid var(--line); background:var(--mist); }
   td{ padding:14px 18px; border-bottom:1px solid var(--line); font-size:13.5px; vertical-align:top; }
   tr:last-child td{ border-bottom:none; }
@@ -150,7 +187,16 @@
 <div id="authGate">Checking your session…</div>
 
 <div id="app">
-  <div class="sidebar">
+  <div class="mobile-bar">
+    <div class="logo"><span class="dot"></span>Sketrix</div>
+    <button class="menu-btn" onclick="toggleSidebar()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <div class="sidebar" id="sidebar">
     <div class="logo"><span class="dot"></span>Sketrix</div>
 
     <div class="nav-item active" data-view="bookings" onclick="switchView('bookings')">
@@ -175,6 +221,7 @@
   </div>
 
   <div class="main">
+    <div class="main-inner">
 
     <!-- BOOKINGS VIEW -->
     <div class="view active" id="view-bookings">
@@ -238,6 +285,7 @@
       </div>
     </div>
 
+    </div>
   </div>
 </div>
 
@@ -344,6 +392,17 @@
     document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
     document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
     document.getElementById('view-' + view).classList.add('active');
+    closeSidebar();
+  }
+
+  // ---------------- MOBILE SIDEBAR ----------------
+  function toggleSidebar(){
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
+  }
+  function closeSidebar(){
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('show');
   }
 
   // ---------------- BOOKINGS ----------------
