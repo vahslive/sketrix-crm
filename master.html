@@ -95,7 +95,7 @@
   .job-price{ font-family:var(--mono); font-weight:700; font-size:17px; }
   .job-addr{ font-size:14px; font-weight:600; margin-bottom:2px; }
   .job-meta{ font-size:12.5px; color:var(--ink-soft); }
-  .job-card{ cursor:pointer; transition:border-color .15s; }
+  .job-card{ transition:border-color .15s; }
   .job-card:hover{ border-color:var(--ink-soft); }
   .job-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
   .svc-chip{ background:var(--mist); color:var(--ink); font-size:11.5px; font-weight:600; padding:5px 11px; border-radius:100px; }
@@ -383,7 +383,7 @@
     document.getElementById('allJobsEmpty').style.display = active.length ? 'none' : 'block';
 
     document.getElementById('allJobsList').innerHTML = active.map(b => `
-      <div class="job-card" onclick="handleCardClick(event, ${b.id})">
+      <div class="job-card">
         <div class="job-top">
           <div>
             <div class="job-addr">${esc(b.address) || 'No address'}</div>
@@ -393,7 +393,10 @@
         </div>
         <div class="job-chips">${serviceChips(b)}</div>
         ${b.claimed_by ? `<div class="job-note">Claimed by teammate #${b.claimed_by}</div>` : ''}
-        ${b.status === 'new' ? `<div class="job-actions"><button class="btn" data-action onclick="claimJob(${b.id})">Accept job</button></div>` : ''}
+        <div class="job-actions">
+          <button class="btn-outline" onclick="openJobDetail(${b.id})">Details</button>
+          ${b.status === 'new' ? `<button class="btn" onclick="claimJob(${b.id})">Accept job</button>` : ''}
+        </div>
       </div>
     `).join('');
   }
@@ -411,7 +414,7 @@
     document.getElementById('mineJobsEmpty').style.display = mine.length ? 'none' : 'block';
 
     document.getElementById('mineJobsList').innerHTML = mine.map(b => `
-      <div class="job-card" onclick="handleCardClick(event, ${b.id})">
+      <div class="job-card">
         <div class="job-top">
           <div>
             <div class="job-addr">${esc(b.address) || 'No address'}</div>
@@ -422,16 +425,12 @@
         <div class="job-chips">${serviceChips(b)}</div>
         ${b.eta_text ? `<div class="job-note">ETA sent: ${esc(b.eta_text)}</div>` : ''}
         <div class="job-actions">
-          ${b.status === 'claimed' ? `<button class="btn" data-action onclick="departJob(${b.id})">I'm on my way</button>` : ''}
-          ${b.status === 'en_route' ? `<button class="btn" data-action onclick="openCompleteModal(${b.id})">Mark complete</button>` : ''}
+          <button class="btn-outline" onclick="openJobDetail(${b.id})">Details</button>
+          ${b.status === 'claimed' ? `<button class="btn" onclick="departJob(${b.id})">I'm on my way</button>` : ''}
+          ${b.status === 'en_route' ? `<button class="btn" onclick="openCompleteModal(${b.id})">Mark complete</button>` : ''}
         </div>
       </div>
     `).join('');
-  }
-
-  function handleCardClick(event, id){
-    if(event.target.closest('[data-action]')) return; // let action buttons work normally
-    openJobDetail(id);
   }
 
   // ---------------- JOB DETAIL MODAL ----------------
