@@ -178,6 +178,12 @@
     border-radius:10px; background:var(--mist); font-family:var(--body);
   }
   .field-row.two{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .tv-item{
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    padding:10px 14px; background:var(--mist); border-radius:10px; margin-bottom:6px; font-size:13px;
+  }
+  .tv-item .tv-price{ font-family:var(--mono); color:var(--ink-soft); }
+  .tv-item .tv-remove{ background:none; border:none; color:var(--ink-soft); font-size:11.5px; cursor:pointer; text-decoration:underline; padding:0; }
   .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
   .btn-cancel{ background:none; border:none; color:var(--ink-soft); font-weight:600; font-size:13.5px; }
 </style>
@@ -310,17 +316,9 @@
       <div><label>Time</label><input type="text" id="f-time" placeholder="9:00 AM"></div>
     </div>
 
-    <div class="field-row">
-      <label>Number of TVs</label>
-      <select id="f-qty" onchange="recalcAddTotal()">
-        <option value="1">1</option>
-        <option value="2">2 (15% off TV #2)</option>
-        <option value="3">3 (15% off TVs #2–3)</option>
-        <option value="4">4+ (15% off each additional)</option>
-      </select>
-    </div>
+    <div id="f-tvList" style="margin-bottom:6px;"></div>
 
-    <div class="field-row">
+    <div class="field-row" style="margin-top:16px;">
       <label>TV size (price is per TV)</label>
       <select id="f-size" onchange="recalcAddTotal()">
         <option value="" data-price="0">— Not specified —</option>
@@ -366,6 +364,9 @@
         </select>
       </div>
     </div>
+
+    <button type="button" class="btn-outline" style="width:100%; margin-bottom:16px;" onclick="addAnotherTv()">+ Add another TV (15% off the cheaper one)</button>
+
     <div class="field-row">
       <label>Add-ons (one-time, not per TV)</label>
       <div style="display:flex; gap:14px; font-size:13px; padding-top:4px; flex-wrap:wrap;">
@@ -559,8 +560,13 @@
     loadBookings();
   }
 
+  let addTvs = []; // finalized TVs for the manual booking form; fields below hold the TV in progress
+
   function openAddModal(){
     document.getElementById('addModalOverlay').classList.add('show');
+    addTvs = [];
+    resetAddTvFields();
+    renderAddTvList();
     recalcAddTotal();
   }
   function closeAddModal(){ document.getElementById('addModalOverlay').classList.remove('show'); }
@@ -571,10 +577,68 @@
     return opt ? Number(opt.dataset.price || 0) : 0;
   }
 
+  function currentAddTvConfig(){
+    return {
+      size: document.getElementById('f-size').value || null,
+      dismount: document.getElementById('f-dismount').value || null,
+      bracket: document.getElementById('f-bracket').value || null,
+      wall: document.getElementById('f-wall').value || null,
+      wires: document.getElementById('f-wires').value || null,
+    };
+  }
+
+  function addTvPrice(tv){
+    return selectedPriceFor('f-size', tv.size) + selectedPriceFor('f-dismount', tv.dismount)
+      + selectedPriceFor('f-bracket', tv.bracket) + selectedPriceFor('f-wall', tv.wall) + selectedPriceFor('f-wires', tv.wires);
+  }
+  function selectedPriceFor(selectId, value){
+    const el = document.getElementById(selectId);
+    const opt = [...el.options].find(o => o.value === value);
+    return opt ? Number(opt.dataset.price || 0) : 0;
+  }
+
+  function resetAddTvFields(){
+    document.getElementById('f-size').value = '';
+    document.getElementById('f-dismount').value = 'dismount_no';
+    document.getElementById('f-bracket').value = 'bracket_have';
+    document.getElementById('f-wall').value = 'wall_standard';
+    document.getElementById('f-wires').value = 'wires_exposed';
+  }
+
+  function renderAddTvList(){
+    document.getElementById('f-tvList').innerHTML = addTvs.map((tv, i) => `
+      <div class="tv-item">
+        <span>TV ${i+1}${i > 0 ? ' — 15% off if not the priciest' : ''}</span>
+        <span class="tv-price">$${addTvPrice(tv)}</span>
+        <button type="button" class="tv-remove" onclick="removeAddTv(${i})">Remove</button>
+      </div>
+    `).join('');
+  }
+  function removeAddTv(index){
+    addTvs.splice(index, 1);
+    renderAddTvList();
+    recalcAddTotal();
+  }
+
+  function addAnotherTv(){
+    const tv = currentAddTvConfig();
+    if(!tv.size){
+      alert('Pick a TV size first before adding another TV.');
+      return;
+    }
+    addTvs.push(tv);
+    resetAddTvFields();
+    renderAddTvList();
+    recalcAddTotal();
+  }
+
   function recalcAddTotal(){
-    const qty = Number(document.getElementById('f-qty').value) || 1;
-    const perTv = selectedPrice('f-size') + selectedPrice('f-dismount') + selectedPrice('f-bracket') + selectedPrice('f-wall') + selectedPrice('f-wires');
-    let total = perTv + (perTv * 0.85 * (qty - 1));
+    const allTvs = [...addTvs];
+    const inProgress = currentAddTvConfig();
+    if(inProgress.size) allTvs.push(inProgress);
+
+    const prices = allTvs.map(addTvPrice).sort((a, b) => b - a);
+    let total = prices.reduce((sum, p, i) => sum + (i === 0 ? p : p * 0.85), 0);
 
     if(document.getElementById('f-addon-soundbar').checked) total += 79;
     if(document.getElementById('f-addon-fireplace').checked) total += 59;
@@ -583,16 +647,27 @@
     document.getElementById('f-total').value = Math.round(total);
   }
 
+  const ADD_SIZE_LABELS = { size_under50:'Up to 50″', size_51_65:'51–65″', size_65_2tech:'65″+ (2 tech)', size_65_1tech:'65″+ (1 tech)' };
+
   async function submitAddBooking(){
     const addons = [];
     if(document.getElementById('f-addon-soundbar').checked) addons.push('addon_soundbar');
     if(document.getElementById('f-addon-fireplace').checked) addons.push('addon_fireplace');
     if(document.getElementById('f-addon-shelf').checked) addons.push('addon_shelf');
 
-    const qty = Number(document.getElementById('f-qty').value) || 1;
+    const allTvs = [...addTvs];
+    const inProgress = currentAddTvConfig();
+    if(inProgress.size) allTvs.push(inProgress);
+    allTvs.sort((a, b) => addTvPrice(b) - addTvPrice(a));
+    const primary = allTvs[0] || inProgress;
+
+    const tvNote = allTvs.length > 1
+      ? `${allTvs.length} TVs this visit: ` + allTvs.map((tv, i) =>
+          `#${i+1} ${ADD_SIZE_LABELS[tv.size] || 'size not set'} ($${addTvPrice(tv)}${i > 0 ? ', 15% off' : ''})`
+        ).join('; ') + '.'
+      : '';
     const manualNotes = document.getElementById('f-notes').value || '';
-    const qtyNote = qty > 1 ? `${qty} TVs at this visit (15% off each TV after the first).` : '';
-    const notes = [qtyNote, manualNotes].filter(Boolean).join(' ') || null;
+    const notes = [tvNote, manualNotes].filter(Boolean).join(' ') || null;
 
     const payload = {
       source: document.getElementById('f-source').value,
@@ -601,11 +676,11 @@
       address: document.getElementById('f-address').value || null,
       date: document.getElementById('f-date').value || null,
       time: document.getElementById('f-time').value || null,
-      size: document.getElementById('f-size').value || null,
-      dismount: document.getElementById('f-dismount').value || null,
-      bracket: document.getElementById('f-bracket').value || null,
-      wall: document.getElementById('f-wall').value || null,
-      wires: document.getElementById('f-wires').value || null,
+      size: primary.size,
+      dismount: primary.dismount,
+      bracket: primary.bracket,
+      wall: primary.wall,
+      wires: primary.wires,
       addons,
       total: Number(document.getElementById('f-total').value) || 0,
       notes,
