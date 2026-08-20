@@ -26,19 +26,20 @@ export async function onRequestPost({ request, env }) {
     address = null, lat = null, lng = null, inServiceArea = null,
     dismount = null, size = null, bracket = null, wall = null, wires = null,
     addons = [], total = 0, date = null, time = null,
-    name = null, phone = null, notes = null,
+    name = null, phone = null, notes = null, tvs = null,
   } = body;
 
   const receiptToken = newReceiptToken();
 
   const result = await env.DB.prepare(
     `INSERT INTO bookings
-      (source, status, address, lat, lng, in_service_area, dismount, size, bracket, wall, wires, addons, total_price, booking_date, booking_time, name, phone, notes, receipt_token)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      (source, status, address, lat, lng, in_service_area, dismount, size, bracket, wall, wires, addons, total_price, booking_date, booking_time, name, phone, notes, receipt_token, tvs_json)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).bind(
     source, 'new', address, lat, lng, inServiceArea ? 1 : 0,
     dismount, size, bracket, wall, wires, JSON.stringify(addons || []),
-    total, date, time, name, phone, notes, receiptToken
+    total, date, time, name, phone, notes, receiptToken,
+    tvs && tvs.length ? JSON.stringify(tvs) : null
   ).run();
 
   const bookingId = result.meta.last_row_id;
@@ -78,7 +79,11 @@ export async function onRequestGet({ request, env }) {
   // Both admins and masters see every booking — masters need full visibility
   // to judge which unclaimed jobs to accept, and to see what teammates are
   // working on. Client-side filtering (e.g. "My Jobs") narrows this down.
-  const query = `SELECT * FROM bookings ORDER BY (booking_date IS NULL), booking_date, booking_time`;
+  const query = `
+    SELECT bookings.*, u.name AS claimed_by_name
+    FROM bookings
+    LEFT JOIN users u ON u.id = bookings.claimed_by
+    ORDER BY (booking_date IS NULL), booking_date, booking_time`;
   const { results } = await env.DB.prepare(query).all();
   return Response.json({ ok: true, bookings: results });
 }
