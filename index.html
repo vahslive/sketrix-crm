@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sketrix — Operations Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FFFFFF; --mist:#F5F5F6; --ink:#0A0A0C; --ink-soft:#6B6B70;
+    --line: rgba(10,10,12,0.09); --signal:#2F5EFF; --signal-soft: rgba(47,94,255,0.08);
+    --level:#2FB37C;
+    --display:'Inter Tight',sans-serif; --body:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--paper); color:var(--ink); font-family:var(--body);
+    min-height:100vh; display:flex; flex-direction:column;
+  }
+  header{ padding:28px 32px; display:flex; justify-content:space-between; align-items:center; }
+  .logo{ font-family:var(--display); font-weight:800; font-size:19px; letter-spacing:-0.01em; display:flex; align-items:center; gap:8px; }
+  .logo .dot{ width:8px; height:8px; border-radius:50%; background:var(--signal); }
+  .nav-login{
+    background:var(--ink); color:var(--paper); text-decoration:none; font-weight:600; font-size:14px;
+    padding:10px 20px; border-radius:100px; transition:opacity .2s;
+  }
+  .nav-login:hover{ opacity:0.8; }
+
+  main{ flex:1; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .hero{ max-width:560px; text-align:center; }
+  .eyebrow{
+    font-size:13px; font-weight:600; color:var(--signal); text-transform:uppercase;
+    letter-spacing:0.08em; margin-bottom:18px;
+  }
+  h1{
+    font-family:var(--display); font-size:clamp(32px,5vw,48px); font-weight:800;
+    letter-spacing:-0.02em; line-height:1.05; margin-bottom:18px;
+  }
+  h1 span{ color:var(--signal); }
+  p.lead{ font-size:16.5px; color:var(--ink-soft); line-height:1.6; margin-bottom:36px; max-width:440px; margin-left:auto; margin-right:auto; }
+
+  .actions{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+  .btn-primary{
+    background:var(--ink); color:var(--paper); text-decoration:none; font-weight:600; font-size:15px;
+    padding:15px 28px; border-radius:100px; transition:opacity .2s;
+  }
+  .btn-primary:hover{ opacity:0.85; }
+
+  .stats{ display:flex; gap:48px; justify-content:center; margin-top:64px; flex-wrap:wrap; }
+  .stats div{ text-align:center; }
+  .stats b{ display:block; font-family:var(--display); font-weight:800; font-size:26px; }
+  .stats span{ font-size:12.5px; color:var(--ink-soft); }
+
+  footer{ padding:24px 32px; text-align:center; font-size:12.5px; color:var(--ink-soft); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><span class="dot"></span>Sketrix</div>
+  <a href="login.html" class="nav-login">Log In</a>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="eyebrow">Operations Platform</div>
+    <h1>Run the whole job.<br>Right from <span>one place</span>.</h1>
+    <p class="lead">Sketrix is the booking, dispatch, and payments engine behind Mount It Right — bookings, technician dispatch, live status, and receipts, all in one system.</p>
+    <div class="actions">
+      <a href="login.html" class="btn-primary">Log In</a>
+    </div>
+
+    <div class="stats">
+      <div><b>Live</b><span>Real-time job status</span></div>
+      <div><b>SMS</b><span>Automatic updates</span></div>
+      <div><b>1</b><span>Place for everything</span></div>
+    </div>
+  </div>
+</main>
+
+<footer>© 2026 Sketrix. Built for field service teams.</footer>
+
+</body>
+</html>

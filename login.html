@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log In — Sketrix</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FFFFFF; --mist:#F5F5F6; --ink:#0A0A0C; --ink-soft:#6B6B70;
+    --line: rgba(10,10,12,0.09); --signal:#2F5EFF; --danger:#A32D2D;
+    --display:'Inter Tight',sans-serif; --body:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--mist); color:var(--ink); font-family:var(--body);
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .card{ max-width:380px; width:100%; background:var(--paper); border-radius:20px; padding:36px 32px; border:1px solid var(--line); }
+  .logo{ font-family:var(--display); font-weight:800; font-size:18px; display:flex; align-items:center; gap:8px; margin-bottom:28px; }
+  .logo .dot{ width:8px; height:8px; border-radius:50%; background:var(--signal); }
+  h1{ font-family:var(--display); font-size:21px; margin-bottom:6px; }
+  .sub{ color:var(--ink-soft); font-size:13.5px; margin-bottom:26px; }
+  label{ display:block; font-size:12.5px; font-weight:600; color:var(--ink-soft); margin:14px 0 5px; }
+  input{ width:100%; padding:13px 14px; font-size:15px; border:1.5px solid var(--line); border-radius:10px; background:var(--mist); }
+  input:focus{ outline:none; border-color:var(--signal); background:var(--paper); }
+  button{ width:100%; margin-top:22px; background:var(--ink); color:var(--paper); border:none; font-weight:600; font-size:14.5px; padding:14px; border-radius:100px; cursor:pointer; transition:opacity .2s; }
+  button:hover{ opacity:0.85; }
+  button:disabled{ opacity:0.5; cursor:not-allowed; }
+  #msg{ margin-top:14px; font-size:13px; text-align:center; display:none; color:var(--danger); }
+  #msg.show{ display:block; }
+  .back{ display:block; text-align:center; margin-top:20px; font-size:13px; color:var(--ink-soft); text-decoration:none; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo"><span class="dot"></span>Sketrix</div>
+  <h1>Log in</h1>
+  <p class="sub">Enter the email or phone and password for your account.</p>
+
+  <label>Email or phone</label>
+  <input type="text" id="emailOrPhone" placeholder="you@example.com" autocomplete="username">
+
+  <label>Password</label>
+  <input type="password" id="password" placeholder="Your password" autocomplete="current-password">
+
+  <button id="loginBtn" onclick="login()">Log In</button>
+  <div id="msg"></div>
+  <a href="index.html" class="back">← Back</a>
+</div>
+
+<script>
+  document.getElementById('password').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') login();
+  });
+
+  async function login(){
+    const emailOrPhone = document.getElementById('emailOrPhone').value.trim();
+    const password = document.getElementById('password').value;
+    const btn = document.getElementById('loginBtn');
+    const msg = document.getElementById('msg');
+    msg.classList.remove('show');
+
+    if(!emailOrPhone || !password){
+      msg.textContent = 'Enter your email/phone and password.';
+      msg.classList.add('show');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Logging in…';
+
+    try{
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emailOrPhone, password }),
+      });
+      const data = await res.json();
+
+      if(data.ok){
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('authUser', JSON.stringify(data.user));
+        location.href = data.user.role === 'admin' ? 'admin.html' : 'master.html';
+      } else {
+        msg.textContent = data.error || 'Login failed.';
+        msg.classList.add('show');
+        btn.disabled = false;
+        btn.textContent = 'Log In';
+      }
+    } catch(err){
+      msg.textContent = 'Could not reach the server.';
+      msg.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Log In';
+    }
+  }
+</script>
+
+</body>
+</html>
