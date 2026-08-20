@@ -187,6 +187,26 @@
   .tv-item .tv-price{ font-family:var(--mono); color:var(--ink-soft); }
   .tv-item .tv-remove{ background:none; border:none; color:var(--ink-soft); font-size:11.5px; cursor:pointer; text-decoration:underline; padding:0; }
   .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+
+  .detail-modal{ padding:0; max-width:420px; overflow:hidden; }
+  .detail-map-wrap{ width:100%; height:180px; background:var(--mist); }
+  .detail-map-wrap iframe{ width:100%; height:100%; border:0; display:block; }
+  .detail-map-wrap.no-map{ display:flex; align-items:center; justify-content:center; color:var(--ink-soft); font-size:13px; }
+  .detail-price{ font-family:var(--display); font-size:26px; font-weight:800; margin-bottom:6px; }
+  .detail-address{
+    display:inline-flex; align-items:center; gap:6px; color:var(--signal); font-weight:600; font-size:13.5px;
+    text-decoration:none; margin-bottom:4px;
+  }
+  .detail-address:hover{ text-decoration:underline; }
+  .detail-meta{ font-size:12.5px; color:var(--ink-soft); margin-bottom:18px; margin-top:6px; }
+  .detail-section{ border-top:1px solid var(--line); padding-top:14px; margin-top:14px; }
+  .detail-label{ font-size:11px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px; }
+  .detail-row{ display:flex; justify-content:space-between; font-size:13.5px; padding:6px 0; }
+  .detail-row span{ color:var(--ink-soft); }
+  .detail-notes{ font-size:13.5px; line-height:1.5; color:var(--ink); }
+  .detail-tv-block{ background:var(--mist); border-radius:12px; padding:12px 14px; margin-bottom:8px; }
+  .detail-tv-block .detail-row{ padding:4px 0; }
+  .detail-tv-title{ font-family:var(--display); font-weight:700; font-size:13px; margin-bottom:4px; }
   .btn-cancel{ background:none; border:none; color:var(--ink-soft); font-weight:600; font-size:13.5px; }
 </style>
 </head>
@@ -390,6 +410,29 @@
   </div>
 </div>
 
+<!-- JOB DETAIL MODAL -->
+<div class="modal-overlay" id="detailModalOverlay">
+  <div class="modal detail-modal">
+    <div id="detailMapWrap" class="detail-map-wrap"></div>
+    <div style="padding:22px 24px 24px;">
+      <div class="detail-price" id="detailPrice">$0</div>
+      <a id="detailAddress" class="detail-address" target="_blank" rel="noopener"></a>
+      <div class="detail-meta" id="detailMeta"></div>
+
+      <div class="detail-section" id="detailServices"></div>
+
+      <div class="detail-section" id="detailNotesWrap" style="display:none;">
+        <div class="detail-label">Notes</div>
+        <div class="detail-notes" id="detailNotes"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeDetailModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- INVITE MODAL -->
 <div class="modal-overlay" id="inviteModalOverlay">
   <div class="modal">
@@ -515,7 +558,16 @@
   }
 
   const ADDON_LABELS = { addon_soundbar:'Soundbar', addon_fireplace:'Above fireplace', addon_shelf:'Wall shelf' };
+  const SIZE_LABELS = { size_under50:'Up to 50″', size_51_65:'51–65″', size_65_2tech:'65″+ (2 tech)', size_65_1tech:'65″+ (1 tech)' };
+  const BRACKET_LABELS = { bracket_have:'Customer has bracket', bracket_fixed:'Fixed bracket', bracket_tilt:'Tilting bracket', bracket_full:'Full-motion bracket' };
+  const WALL_LABELS = { wall_standard:'Drywall', wall_brick:'Brick/concrete', wall_stucco:'Stucco' };
+  const WIRES_LABELS = { wires_exposed:'Cords exposed', wires_external:'External cord sleeve', wires_inwall:'In-wall cord concealment' };
+
   function serviceSummary(b){
+    let tvs = null;
+    try{ tvs = JSON.parse(b.tvs_json || 'null'); } catch{}
+    if(tvs && tvs.length > 1) return `${tvs.length} TVs`;
+
     const parts = [];
     if(b.size) parts.push(b.size.replace('size_','').replace(/_/g,' '));
     if(b.dismount === 'dismount_yes') parts.push('dismount old TV');
@@ -527,6 +579,98 @@
     return parts.join(', ') || '—';
   }
 
+  function tvFieldsHtml(tv){
+    const rows = [
+      ['TV size', SIZE_LABELS[tv.size] || null],
+      ['Old TV removal', tv.dismount === 'dismount_yes' ? 'Yes' : null],
+      ['Bracket', tv.bracket && tv.bracket !== 'bracket_have' ? BRACKET_LABELS[tv.bracket] : null],
+      ['Wall type', tv.wall && tv.wall !== 'wall_standard' ? WALL_LABELS[tv.wall] : null],
+      ['Cords', tv.wires && tv.wires !== 'wires_exposed' ? WIRES_LABELS[tv.wires] : null],
+    ].filter(([, v]) => v);
+    return rows.length
+      ? rows.map(([label, val]) => `<div class="detail-row"><span>${label}</span><strong>${esc(val)}</strong></div>`).join('')
+      : '<div class="detail-row"><span>Standard mount</span></div>';
+  }
+
+  function serviceBreakdown(b){
+    let tvs = null;
+    try{ tvs = JSON.parse(b.tvs_json || 'null'); } catch{}
+
+    let html;
+    if(tvs && tvs.length > 1){
+      html = tvs.map((tv, i) => `
+        <div class="detail-tv-block">
+          <div class="detail-tv-title">TV ${i + 1}</div>
+          ${tvFieldsHtml(tv)}
+        </div>
+      `).join('');
+    } else {
+      html = tvFieldsHtml(b);
+    }
+
+    let addonNames = [];
+    try{ addonNames = (JSON.parse(b.addons || '[]')).map(a => ADDON_LABELS[a]).filter(Boolean); } catch{}
+    if(addonNames.length) html += `<div class="detail-row" style="margin-top:6px;"><span>Add-ons</span><strong>${esc(addonNames.join(', '))}</strong></div>`;
+
+    return html;
+  }
+
+  function mapsUrlFor(b){
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    if(b.lat != null && b.lng != null){
+      return isIOS
+        ? `https://maps.apple.com/?ll=${b.lat},${b.lng}&q=${encodeURIComponent(b.address || 'Job location')}`
+        : `https://www.google.com/maps/search/?api=1&query=${b.lat},${b.lng}`;
+    }
+    const q = encodeURIComponent(b.address || '');
+    return isIOS ? `https://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`;
+  }
+
+  function openJobDetail(id){
+    const b = allBookings.find(x => x.id === id);
+    if(!b) return;
+
+    document.getElementById('detailPrice').textContent = '$' + (b.actual_total ?? b.total_price ?? 0);
+
+    const addrEl = document.getElementById('detailAddress');
+    addrEl.textContent = (b.address || 'No address on file') + '  →';
+    addrEl.href = mapsUrlFor(b);
+
+    const metaParts = [];
+    if(b.name) metaParts.push(esc(b.name));
+    if(b.phone) metaParts.push(`<a href="tel:${esc(b.phone)}" style="color:var(--signal); font-weight:600;">${esc(b.phone)}</a>`);
+    if(b.booking_date) metaParts.push(esc(b.booking_date) + (b.booking_time ? ' · ' + esc(b.booking_time) : ''));
+    metaParts.push(esc(b.claimed_by_name && b.status !== 'new' ? b.status.replace('_',' ') + ' · ' + b.claimed_by_name : b.status.replace('_',' ')));
+    document.getElementById('detailMeta').innerHTML = metaParts.join(' · ');
+
+    document.getElementById('detailServices').innerHTML =
+      `<div class="detail-label">Services</div>` + serviceBreakdown(b);
+
+    const notesWrap = document.getElementById('detailNotesWrap');
+    if(b.notes){
+      notesWrap.style.display = 'block';
+      document.getElementById('detailNotes').textContent = b.notes;
+    } else {
+      notesWrap.style.display = 'none';
+    }
+
+    const mapWrap = document.getElementById('detailMapWrap');
+    if(b.lat != null && b.lng != null){
+      const d = 0.006;
+      const bbox = `${b.lng - d},${b.lat - d},${b.lng + d},${b.lat + d}`;
+      mapWrap.classList.remove('no-map');
+      mapWrap.innerHTML = `<iframe loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&marker=${b.lat},${b.lng}"></iframe>`;
+    } else {
+      mapWrap.classList.add('no-map');
+      mapWrap.innerHTML = 'No location on file for this address';
+    }
+
+    document.getElementById('detailModalOverlay').classList.add('show');
+  }
+  function closeDetailModal(){
+    document.getElementById('detailModalOverlay').classList.remove('show');
+  }
+
   function renderBookings(){
     const filtered = activeFilter === 'all' ? allBookings : allBookings.filter(b => b.status === activeFilter);
     const tbody = document.getElementById('bookingsBody');
@@ -535,14 +679,15 @@
     tbody.innerHTML = filtered.map(b => `
       <tr>
         <td>${b.booking_date ? esc(b.booking_date) + (b.booking_time ? ' · ' + esc(b.booking_time) : '') : '<span style="color:var(--ink-soft)">Not scheduled</span>'}</td>
-        <td><div class="cell-name">${esc(b.name) || '—'}</div><div class="cell-sub">${esc(b.phone) || ''}</div></td>
+        <td><div class="cell-name">${esc(b.name) || '—'}</div><div class="cell-sub">${b.phone ? `<a href="tel:${esc(b.phone)}" style="color:inherit;">${esc(b.phone)}</a>` : ''}</div></td>
         <td>${esc(b.address) || '—'}</td>
         <td style="max-width:220px;"><div class="cell-name" style="font-weight:500;">${esc(serviceSummary(b))}</div>${b.notes ? `<div class="cell-sub">${esc(b.notes)}</div>` : ''}</td>
         <td class="price">$${b.actual_total ?? b.total_price ?? 0}</td>
-        <td><span class="badge ${b.status}">${b.status.replace('_',' ')}</span></td>
+        <td><span class="badge ${b.status}">${b.claimed_by_name && b.status !== 'new' ? esc(b.status.replace('_',' ')) + ' · ' + esc(b.claimed_by_name) : b.status.replace('_',' ')}</span></td>
         <td style="font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);">${esc(b.source)}</td>
         <td>
           <div class="row-actions">
+            <button onclick="openJobDetail(${b.id})">Details</button>
             ${b.status !== 'completed' ? `<button onclick="updateStatus(${b.id},'completed')">Complete</button>` : ''}
             ${b.status !== 'cancelled' ? `<button onclick="updateStatus(${b.id},'cancelled')">Cancel</button>` : ''}
             <button class="danger" onclick="deleteBooking(${b.id})">Delete</button>
@@ -686,6 +831,7 @@
       addons,
       total: Number(document.getElementById('f-total').value) || 0,
       notes,
+      tvs: allTvs,
     };
     await fetch('/api/bookings', { method:'POST', headers: authHeaders(true), body: JSON.stringify(payload) });
     closeAddModal();
