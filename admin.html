@@ -159,6 +159,8 @@
   .panel{ background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:20px; }
   .panel h3{ font-family:var(--display); font-size:15px; margin-bottom:14px; }
   .member-row{ display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--line); }
+  .row-actions-btn{ background:none; border:1px solid var(--line); border-radius:8px; padding:5px 10px; font-size:11.5px; font-weight:600; color:var(--ink-soft); }
+  .row-actions-btn:hover{ border-color:var(--danger); color:var(--danger); }
   .member-row:last-child{ border-bottom:none; }
   .member-name{ font-size:13.5px; font-weight:600; }
   .member-sub{ font-size:12px; color:var(--ink-soft); }
@@ -700,6 +702,7 @@
       ? data.invites.map(i => `
         <div class="member-row">
           <div><div class="member-name">${esc(i.name)}</div><div class="member-sub">${esc(i.email || i.phone)} · ${esc(i.role)}</div></div>
+          <button class="row-actions-btn" onclick="deleteInvite(${i.id})">Delete</button>
         </div>`).join('')
       : `<div class="member-sub">No pending invites.</div>`;
 
@@ -709,6 +712,12 @@
       <div class="member-row">
         <div><div class="member-name">${esc(authUser.name)} (you)</div><div class="member-sub">${esc(authUser.email || authUser.phone)} · ${esc(authUser.role)}</div></div>
       </div>`;
+  }
+
+  async function deleteInvite(id){
+    if(!confirm('Cancel this invite?')) return;
+    await fetch(`/api/invites/${id}`, { method:'DELETE', headers: authHeaders() });
+    loadTeam();
   }
 
   function openInviteModal(){ document.getElementById('inviteModalOverlay').classList.add('show'); }
