@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jobs — Sketrix</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FFFFFF; --mist:#F5F5F6; --ink:#0A0A0C; --ink-soft:#6B6B70;
+    --line: rgba(10,10,12,0.09); --signal:#2F5EFF; --signal-soft: rgba(47,94,255,0.08);
+    --level:#2FB37C; --level-soft: rgba(47,179,124,0.1);
+    --warn:#B7791F; --warn-soft: rgba(183,121,31,0.1);
+    --danger:#A32D2D; --danger-soft: rgba(163,45,45,0.08);
+    --display:'Inter Tight',sans-serif; --body:'Inter',sans-serif; --mono:'IBM Plex Mono',monospace;
+    --sidebar-w: 232px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ background:var(--mist); color:var(--ink); font-family:var(--body); font-size:14px; -webkit-font-smoothing:antialiased; }
+  a{ color:inherit; text-decoration:none; }
+  button{ font-family:inherit; cursor:pointer; }
+
+  #authGate{ min-height:100vh; display:flex; align-items:center; justify-content:center; color:var(--ink-soft); font-size:14px; }
+
+  #app{ display:none; flex-direction:column; min-height:100vh; }
+  .sidebar{
+    width:var(--sidebar-w); background:var(--paper); border-right:1px solid var(--line);
+    position:fixed; top:0; left:0; bottom:0; display:flex; flex-direction:column; padding:22px 16px;
+    z-index:50; transition:transform .25s ease;
+  }
+  .logo{ font-family:var(--display); font-weight:800; font-size:17px; display:flex; align-items:center; gap:8px; padding:6px 8px 24px; }
+  .logo .dot{ width:7px; height:7px; border-radius:50%; background:var(--signal); box-shadow:0 0 0 5px var(--signal-soft); }
+
+  .nav-item{
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px;
+    font-size:13.5px; font-weight:600; color:var(--ink-soft); margin-bottom:2px; transition:background .15s, color .15s;
+  }
+  .nav-item:hover{ background:var(--mist); color:var(--ink); }
+  .nav-item.active{ background:var(--signal-soft); color:var(--signal); }
+  .nav-item .ic{ width:16px; height:16px; flex:none; }
+  .nav-item .count{ margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--ink-soft); }
+
+  .sidebar-bottom{ margin-top:auto; padding-top:16px; border-top:1px solid var(--line); }
+  .user-chip{ display:flex; align-items:center; gap:10px; padding:8px; border-radius:10px; }
+  .user-avatar{
+    width:32px; height:32px; border-radius:50%; background:var(--ink); color:var(--paper);
+    display:flex; align-items:center; justify-content:center; font-family:var(--display); font-size:12px; font-weight:700; flex:none;
+  }
+  .user-name{ font-size:13px; font-weight:600; line-height:1.2; }
+  .user-role{ font-size:11px; color:var(--ink-soft); text-transform:capitalize; }
+  .logout-btn{ background:none; border:none; color:var(--ink-soft); font-size:12.5px; font-weight:600; padding:8px; width:100%; text-align:left; margin-top:4px; border-radius:8px; }
+  .logout-btn:hover{ background:var(--mist); color:var(--danger); }
+
+  .main{ margin-left:var(--sidebar-w); min-height:100vh; display:flex; justify-content:center; padding:32px 36px 60px; }
+  .main-inner{ width:100%; max-width:960px; }
+  .view{ display:none; }
+  .view.active{ display:block; }
+
+  .mobile-bar{ display:none; }
+  .sidebar-overlay{ display:none; }
+  @media (max-width:860px){
+    .mobile-bar{
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      position:sticky; top:0; z-index:40; background:var(--paper); border-bottom:1px solid var(--line); padding:14px 18px;
+    }
+    .mobile-bar .logo{ padding:0; font-size:16px; }
+    .menu-btn{ background:none; border:1.5px solid var(--line); border-radius:10px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; flex:none; }
+    .sidebar{ transform:translateX(-100%); box-shadow:0 0 40px rgba(10,10,12,0.15); }
+    .sidebar.open{ transform:translateX(0); }
+    .sidebar-overlay{ display:none; position:fixed; inset:0; background:rgba(10,10,12,0.35); z-index:45; }
+    .sidebar-overlay.show{ display:block; }
+    .main{ margin-left:0; padding:20px 16px 48px; display:block; }
+    .main-inner{ max-width:none; }
+  }
+
+  .page-head{ display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:24px; flex-wrap:wrap; gap:14px; }
+  .page-head h1{ font-family:var(--display); font-size:24px; font-weight:800; letter-spacing:-0.01em; }
+  .page-head .sub{ color:var(--ink-soft); font-size:13.5px; margin-top:4px; }
+  .btn{ background:var(--ink); color:var(--paper); border:none; font-weight:600; font-size:13.5px; padding:11px 20px; border-radius:100px; transition:opacity .2s; }
+  .btn:hover{ opacity:0.85; }
+  .btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .btn-outline{ background:var(--paper); color:var(--ink); border:1.5px solid var(--line); font-weight:600; font-size:13px; padding:9px 16px; border-radius:100px; }
+  .btn-outline:hover{ border-color:var(--ink-soft); }
+
+  .stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:26px; }
+  @media (max-width:600px){ .stats{ grid-template-columns:1fr; } }
+  .stat-card{ background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:18px 20px; }
+  .stat-card .lbl{ font-size:12px; color:var(--ink-soft); font-weight:600; margin-bottom:8px; }
+  .stat-card .val{ font-family:var(--display); font-size:26px; font-weight:800; }
+  .stat-card .val.mono{ font-family:var(--mono); }
+
+  .job-list{ display:flex; flex-direction:column; gap:12px; }
+  .job-card{ background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:18px 20px; }
+  .job-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:10px; }
+  .job-price{ font-family:var(--mono); font-weight:700; font-size:17px; }
+  .job-addr{ font-size:14px; font-weight:600; margin-bottom:2px; }
+  .job-meta{ font-size:12.5px; color:var(--ink-soft); }
+  .job-services{ font-size:12.5px; color:var(--ink-soft); margin-top:8px; line-height:1.5; }
+  .job-actions{ display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+
+  .badge{ display:inline-block; padding:4px 10px; border-radius:100px; font-size:11px; font-weight:700; text-transform:capitalize; white-space:nowrap; }
+  .badge.new{ background:var(--signal-soft); color:var(--signal); }
+  .badge.claimed{ background:var(--warn-soft); color:var(--warn); }
+  .badge.en_route{ background:var(--signal-soft); color:var(--signal); }
+  .badge.completed{ background:var(--level-soft); color:var(--level); }
+  .badge.cancelled{ background:var(--danger-soft); color:var(--danger); }
+
+  .empty{ text-align:center; padding:56px 20px; color:var(--ink-soft); font-size:13.5px; background:var(--paper); border:1px solid var(--line); border-radius:16px; }
+
+  .modal-overlay{ display:none; position:fixed; inset:0; background:rgba(10,10,12,0.4); align-items:center; justify-content:center; z-index:100; padding:20px; }
+  .modal-overlay.show{ display:flex; }
+  .modal{ background:var(--paper); border-radius:18px; padding:26px; max-width:380px; width:100%; }
+  .modal h2{ font-family:var(--display); font-size:17px; margin-bottom:16px; }
+  .field-row{ margin-bottom:12px; }
+  .field-row label{ display:block; font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:5px; }
+  .field-row select, .field-row input{ width:100%; padding:11px 12px; font-size:14px; border:1.5px solid var(--line); border-radius:10px; background:var(--mist); font-family:var(--body); }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+  .btn-cancel{ background:none; border:none; color:var(--ink-soft); font-weight:600; font-size:13.5px; }
+</style>
+</head>
+<body>
+
+<div id="authGate">Checking your session…</div>
+
+<div id="app">
+  <div class="mobile-bar">
+    <div class="logo"><span class="dot"></span>Sketrix</div>
+    <button class="menu-btn" onclick="toggleSidebar()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <div class="sidebar" id="sidebar">
+    <div class="logo"><span class="dot"></span>Sketrix</div>
+
+    <div class="nav-item active" data-view="all" onclick="switchView('all')">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+      All Jobs
+      <span class="count" id="countAll">0</span>
+    </div>
+    <div class="nav-item" data-view="mine" onclick="switchView('mine')">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.5"/><path d="M4 20c0-4 3.5-7 8-7s8 3 8 7"/></svg>
+      My Jobs
+      <span class="count" id="countMine">0</span>
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="user-chip">
+        <div class="user-avatar" id="userAvatar">–</div>
+        <div>
+          <div class="user-name" id="userName">–</div>
+          <div class="user-role" id="userRole">–</div>
+        </div>
+      </div>
+      <button class="logout-btn" onclick="logout()">Log out</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="main-inner">
+
+      <!-- ALL JOBS VIEW -->
+      <div class="view active" id="view-all">
+        <div class="page-head">
+          <div>
+            <h1>All Jobs</h1>
+            <div class="sub">Every booking across the team. Accept one to make it yours.</div>
+          </div>
+          <button class="btn-outline" onclick="loadBookings()">Refresh</button>
+        </div>
+        <div class="job-list" id="allJobsList"></div>
+        <div class="empty" id="allJobsEmpty" style="display:none;">No bookings yet.</div>
+      </div>
+
+      <!-- MY JOBS VIEW -->
+      <div class="view" id="view-mine">
+        <div class="page-head">
+          <div>
+            <h1>My Jobs</h1>
+            <div class="sub">What you've claimed, and what you've earned.</div>
+          </div>
+          <button class="btn-outline" onclick="loadBookings()">Refresh</button>
+        </div>
+
+        <div class="stats">
+          <div class="stat-card"><div class="lbl">Active</div><div class="val" id="statActive">0</div></div>
+          <div class="stat-card"><div class="lbl">Completed</div><div class="val" id="statCompleted">0</div></div>
+          <div class="stat-card"><div class="lbl">Total earned</div><div class="val mono" id="statEarned">$0</div></div>
+        </div>
+
+        <div class="job-list" id="mineJobsList"></div>
+        <div class="empty" id="mineJobsEmpty" style="display:none;">You haven't claimed any jobs yet — check All Jobs.</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- COMPLETE JOB MODAL -->
+<div class="modal-overlay" id="completeModalOverlay">
+  <div class="modal">
+    <h2>Mark this job complete</h2>
+    <div class="field-row">
+      <label>Payment method</label>
+      <select id="c-payment">
+        <option value="cash">Cash</option>
+        <option value="card">Card</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <label>Final price ($) — leave as-is unless it changed on site</label>
+      <input type="number" id="c-total">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeCompleteModal()">Cancel</button>
+      <button class="btn" onclick="submitComplete()">Complete job</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ---------------- AUTH GATE ----------------
+  let authToken = localStorage.getItem('authToken');
+  let authUser = null;
+  try{ authUser = JSON.parse(localStorage.getItem('authUser') || 'null'); } catch{}
+
+  async function checkAuth(){
+    if(!authToken){ location.href = 'login.html'; return; }
+    try{
+      const res = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + authToken } });
+      const data = await res.json();
+      if(!data.ok) throw new Error('unauthorized');
+      authUser = data.user;
+      localStorage.setItem('authUser', JSON.stringify(authUser));
+      renderUser();
+      document.getElementById('authGate').style.display = 'none';
+      document.getElementById('app').style.display = 'flex';
+      loadBookings();
+    } catch(err){
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('authUser');
+      location.href = 'login.html';
+    }
+  }
+  function renderUser(){
+    document.getElementById('userName').textContent = authUser.name;
+    document.getElementById('userRole').textContent = authUser.role;
+    document.getElementById('userAvatar').textContent = (authUser.name || '?').slice(0,2).toUpperCase();
+  }
+  function logout(){
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('authUser');
+    location.href = 'login.html';
+  }
+  function authHeaders(json){
+    const h = { 'Authorization': 'Bearer ' + authToken };
+    if(json) h['Content-Type'] = 'application/json';
+    return h;
+  }
+  checkAuth();
+
+  // ---------------- NAV / MOBILE ----------------
+  function switchView(view){
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
+    document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+    document.getElementById('view-' + view).classList.add('active');
+    closeSidebar();
+  }
+  function toggleSidebar(){
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
+  }
+  function closeSidebar(){
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('show');
+  }
+
+  // ---------------- DATA ----------------
+  let allBookings = [];
+
+  function esc(str){
+    return String(str ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  const ADDON_LABELS = { addon_soundbar:'Soundbar', addon_fireplace:'Above fireplace', addon_shelf:'Wall shelf' };
+  function serviceSummary(b){
+    const parts = [];
+    if(b.size) parts.push(b.size.replace('size_','').replace(/_/g,' '));
+    if(b.dismount === 'dismount_yes') parts.push('dismount old TV');
+    try{
+      (JSON.parse(b.addons || '[]')).forEach(a => { if(ADDON_LABELS[a]) parts.push(ADDON_LABELS[a]); });
+    } catch{}
+    return parts.join(' · ') || 'Standard mount';
+  }
+
+  async function loadBookings(){
+    const res = await fetch('/api/bookings', { headers: authHeaders() });
+    if(res.status === 401){ logout(); return; }
+    const data = await res.json();
+    allBookings = data.bookings || [];
+    renderAll();
+    renderMine();
+  }
+
+  function renderAll(){
+    const active = allBookings.filter(b => b.status !== 'cancelled');
+    document.getElementById('countAll').textContent = active.filter(b => b.status === 'new').length;
+    document.getElementById('allJobsEmpty').style.display = active.length ? 'none' : 'block';
+
+    document.getElementById('allJobsList').innerHTML = active.map(b => `
+      <div class="job-card">
+        <div class="job-top">
+          <div>
+            <div class="job-addr">${esc(b.address) || 'No address'}</div>
+            <div class="job-meta">${b.booking_date ? esc(b.booking_date) + (b.booking_time ? ' · ' + esc(b.booking_time) : '') : 'Not scheduled'} · <span class="badge ${b.status}">${b.status.replace('_',' ')}</span></div>
+          </div>
+          <div class="job-price">$${b.actual_total ?? b.total_price ?? 0}</div>
+        </div>
+        <div class="job-services">${serviceSummary(b)}${b.claimed_by ? ' · claimed by teammate #' + b.claimed_by : ''}</div>
+        ${b.status === 'new' ? `<div class="job-actions"><button class="btn" onclick="claimJob(${b.id})">Accept job</button></div>` : ''}
+      </div>
+    `).join('');
+  }
+
+  function renderMine(){
+    const mine = allBookings.filter(b => b.claimed_by === authUser.id);
+    const active = mine.filter(b => ['claimed','en_route'].includes(b.status));
+    const done = mine.filter(b => b.status === 'completed');
+    const earned = done.reduce((sum,b) => sum + (b.master_earning || 0), 0);
+
+    document.getElementById('countMine').textContent = active.length;
+    document.getElementById('statActive').textContent = active.length;
+    document.getElementById('statCompleted').textContent = done.length;
+    document.getElementById('statEarned').textContent = '$' + earned;
+    document.getElementById('mineJobsEmpty').style.display = mine.length ? 'none' : 'block';
+
+    document.getElementById('mineJobsList').innerHTML = mine.map(b => `
+      <div class="job-card">
+        <div class="job-top">
+          <div>
+            <div class="job-addr">${esc(b.address) || 'No address'}</div>
+            <div class="job-meta">${esc(b.name) || ''} · ${esc(b.phone) || ''} · <span class="badge ${b.status}">${b.status.replace('_',' ')}</span></div>
+          </div>
+          <div class="job-price">$${b.actual_total ?? b.total_price ?? 0}${b.status === 'completed' ? ` <span style="font-size:11px; color:var(--ink-soft); font-weight:500;">(you: $${b.master_earning||0})</span>` : ''}</div>
+        </div>
+        <div class="job-services">${serviceSummary(b)}${b.eta_text ? ' · ETA sent: ' + esc(b.eta_text) : ''}</div>
+        <div class="job-actions">
+          ${b.status === 'claimed' ? `<button class="btn" onclick="departJob(${b.id})">I'm on my way</button>` : ''}
+          ${b.status === 'en_route' ? `<button class="btn" onclick="openCompleteModal(${b.id})">Mark complete</button>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ---------------- ACTIONS ----------------
+  async function claimJob(id){
+    const res = await fetch(`/api/bookings/${id}/claim`, { method:'POST', headers: authHeaders() });
+    if(!res.ok){
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || 'Could not claim this job — someone may have just taken it.');
+    }
+    loadBookings();
+  }
+
+  function departJob(id){
+    if(!navigator.geolocation){
+      alert('Location is not available on this device/browser.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const { latitude, longitude } = pos.coords;
+      await fetch(`/api/bookings/${id}/depart`, {
+        method:'POST', headers: authHeaders(true),
+        body: JSON.stringify({ lat: latitude, lng: longitude }),
+      });
+      loadBookings();
+    }, () => {
+      alert("Couldn't get your location — check location permissions and try again.");
+    });
+  }
+
+  let completingId = null;
+  function openCompleteModal(id){
+    completingId = id;
+    const booking = allBookings.find(b => b.id === id);
+    document.getElementById('c-total').value = booking ? (booking.total_price ?? 0) : 0;
+    document.getElementById('completeModalOverlay').classList.add('show');
+  }
+  function closeCompleteModal(){
+    document.getElementById('completeModalOverlay').classList.remove('show');
+    completingId = null;
+  }
+  async function submitComplete(){
+    if(!completingId) return;
+    const payload = {
+      paymentMethod: document.getElementById('c-payment').value,
+      actualTotal: Number(document.getElementById('c-total').value) || 0,
+    };
+    await fetch(`/api/bookings/${completingId}/complete`, { method:'POST', headers: authHeaders(true), body: JSON.stringify(payload) });
+    closeCompleteModal();
+    loadBookings();
+  }
+</script>
+
+</body>
+</html>
