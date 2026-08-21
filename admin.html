@@ -1164,12 +1164,17 @@
         </div>`).join('')
       : `<div class="member-sub">No pending invites.</div>`;
 
-    // Members list is derived from bookings' claimed_by is not enough — show current user at minimum.
+    const usersRes = await fetch('/api/users', { headers: authHeaders() });
+    const usersData = usersRes.ok ? await usersRes.json() : { users: [] };
+    const members = usersData.users || [];
+
     const membersEl = document.getElementById('membersList');
-    membersEl.innerHTML = `
-      <div class="member-row">
-        <div><div class="member-name">${esc(authUser.name)} (you)</div><div class="member-sub">${esc(authUser.email || authUser.phone)} · ${esc(authUser.role)}</div></div>
-      </div>`;
+    membersEl.innerHTML = members.length
+      ? members.map(u => `
+        <div class="member-row">
+          <div><div class="member-name">${esc(u.name)}${u.id === authUser.id ? ' (you)' : ''}</div><div class="member-sub">${esc(u.email || u.phone) || '—'} · ${esc(u.role)}</div></div>
+        </div>`).join('')
+      : `<div class="member-row"><div><div class="member-name">${esc(authUser.name)} (you)</div><div class="member-sub">${esc(authUser.email || authUser.phone)} · ${esc(authUser.role)}</div></div></div>`;
   }
 
   async function deleteInvite(id){
