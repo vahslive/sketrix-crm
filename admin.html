@@ -476,6 +476,10 @@
           <h3>Busiest days of the week</h3>
           <div class="an-chart-wrap"><canvas id="chartByWeekday"></canvas></div>
         </div>
+        <div class="panel an-card">
+          <h3>Where bookings come from</h3>
+          <div class="an-chart-wrap an-chart-wrap-small"><canvas id="chartBySource"></canvas></div>
+        </div>
       </div>
     </div>
 
@@ -1032,6 +1036,9 @@
 
     if(typeof Chart === 'undefined'){
       console.error('Chart.js failed to load — charts skipped, stats still shown.');
+      gridEl.innerHTML = `<div class="panel an-card an-card-wide" style="text-align:center; color:var(--ink-soft); padding:40px 20px;">
+        Charts couldn't load (the chart library didn't come through from the CDN). Refresh the page — if this keeps happening, check your internet connection or ad-blocker.
+      </div>`;
       return;
     }
 
@@ -1039,6 +1046,9 @@
       renderAnalyticsCharts(done, now, sumTotal);
     } catch(err){
       console.error('Analytics charts failed to render:', err);
+      gridEl.innerHTML = `<div class="panel an-card an-card-wide" style="text-align:center; color:var(--danger); padding:40px 20px;">
+        Charts hit an error while rendering: ${esc(err.message)}
+      </div>`;
     }
   }
 
@@ -1138,6 +1148,37 @@
         animation: { duration: 700, easing: 'easeOutQuart' },
         plugins: { legend: { display: false } },
         scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } },
+      },
+    });
+
+    // ---- Where bookings come from (source) ----
+    const sourceCounts = {};
+    allBookings.forEach(b => {
+      if(b.status === 'cancelled') return;
+      const s = b.source || 'online';
+      sourceCounts[s] = (sourceCounts[s] || 0) + 1;
+    });
+    const sourceLabels = Object.keys(sourceCounts);
+    const hasSourceData = sourceLabels.length > 0;
+    if(charts.source) charts.source.destroy();
+    charts.source = new Chart(document.getElementById('chartBySource'), {
+      type: 'doughnut',
+      data: hasSourceData
+        ? {
+            labels: sourceLabels.map(s => s.charAt(0).toUpperCase() + s.slice(1)),
+            datasets: [{ data: sourceLabels.map(s => sourceCounts[s]), backgroundColor: [COLOR_SIGNAL, COLOR_WARN, COLOR_LEVEL, COLOR_INK_SOFT] }],
+          }
+        : {
+            labels: ['No bookings yet'],
+            datasets: [{ data: [1], backgroundColor: ['#E4E4E7'] }],
+          },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '65%',
+        animation: { duration: 700, easing: 'easeOutQuart' },
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 }, color: hasSourceData ? undefined : '#9CA3AF' } },
+          tooltip: { enabled: hasSourceData },
+        },
       },
     });
   }
