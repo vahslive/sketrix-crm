@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sketrix — Operations Platform</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%230A0A0C'/%3E%3Crect x='9' y='24' width='5' height='9' rx='2.5' fill='%232F5EFF' opacity='0.55'/%3E%3Crect x='17.5' y='17' width='5' height='16' rx='2.5' fill='%232F5EFF' opacity='0.78'/%3E%3Crect x='26' y='8' width='5' height='25' rx='2.5' fill='%232F5EFF'/%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -18,8 +19,8 @@
   .wrap{ max-width:1080px; margin:0 auto; padding:0 32px; }
 
   header{ padding:26px 0; display:flex; justify-content:space-between; align-items:center; }
-  .logo{ font-family:var(--display); font-weight:800; font-size:18px; letter-spacing:-0.01em; display:flex; align-items:center; gap:8px; }
-  .logo .dot{ width:8px; height:8px; border-radius:50%; background:var(--signal); }
+  .logo{ font-family:var(--display); font-weight:800; font-size:18px; letter-spacing:-0.01em; display:flex; align-items:center; gap:9px; }
+  .logo .mark{ width:26px; height:26px; border-radius:7px; flex-shrink:0; }
   .nav-login{
     background:var(--ink); color:var(--paper); font-weight:600; font-size:13.5px;
     padding:10px 20px; border-radius:100px; transition:opacity .2s;
@@ -89,7 +90,15 @@
 
 <div class="wrap">
   <header>
-    <div class="logo"><span class="dot"></span>Sketrix</div>
+    <div class="logo">
+      <svg class="mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+        <rect width="40" height="40" rx="10" fill="#0A0A0C"/>
+        <rect x="9" y="24" width="5" height="9" rx="2.5" fill="#2F5EFF" opacity="0.55"/>
+        <rect x="17.5" y="17" width="5" height="16" rx="2.5" fill="#2F5EFF" opacity="0.78"/>
+        <rect x="26" y="8" width="5" height="25" rx="2.5" fill="#2F5EFF"/>
+      </svg>
+      Sketrix
+    </div>
     <a href="login.html" class="nav-login">Log In</a>
   </header>
 
