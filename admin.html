@@ -1022,6 +1022,27 @@
         <div class="an-stat-trend flat">of all non-cancelled jobs</div>
       </div>`;
 
+    // Show the stat cards right away — chart rendering happens after, and
+    // is wrapped separately so a chart failure can never hide this section.
+    const statsEl = document.getElementById('anStats');
+    statsEl.classList.remove('an-in'); void statsEl.offsetWidth; statsEl.classList.add('an-in');
+
+    const gridEl = document.querySelector('#view-analytics .an-grid');
+    gridEl.classList.remove('an-in'); void gridEl.offsetWidth; gridEl.classList.add('an-in');
+
+    if(typeof Chart === 'undefined'){
+      console.error('Chart.js failed to load — charts skipped, stats still shown.');
+      return;
+    }
+
+    try{
+      renderAnalyticsCharts(done, now, sumTotal);
+    } catch(err){
+      console.error('Analytics charts failed to render:', err);
+    }
+  }
+
+  function renderAnalyticsCharts(done, now, sumTotal){
     // ---- Revenue by month (last 6 months, oldest to newest) ----
     const monthKeys = [];
     for(let i = 5; i >= 0; i--){
@@ -1053,17 +1074,26 @@
     const methodCounts = {};
     done.forEach(b => { const m = b.payment_method || 'unknown'; methodCounts[m] = (methodCounts[m] || 0) + 1; });
     const methodLabels = Object.keys(methodCounts);
+    const hasMethodData = methodLabels.length > 0;
     if(charts.methods) charts.methods.destroy();
     charts.methods = new Chart(document.getElementById('chartPaymentMethods'), {
       type: 'doughnut',
-      data: {
-        labels: methodLabels.map(m => m.charAt(0).toUpperCase() + m.slice(1)),
-        datasets: [{ data: methodLabels.map(m => methodCounts[m]), backgroundColor: [COLOR_SIGNAL, COLOR_LEVEL, COLOR_WARN, COLOR_INK_SOFT] }],
-      },
+      data: hasMethodData
+        ? {
+            labels: methodLabels.map(m => m.charAt(0).toUpperCase() + m.slice(1)),
+            datasets: [{ data: methodLabels.map(m => methodCounts[m]), backgroundColor: [COLOR_SIGNAL, COLOR_LEVEL, COLOR_WARN, COLOR_INK_SOFT] }],
+          }
+        : {
+            labels: ['No completed jobs yet'],
+            datasets: [{ data: [1], backgroundColor: ['#E4E4E7'] }],
+          },
       options: {
         responsive: true, maintainAspectRatio: false, cutout: '65%',
         animation: { duration: 700, easing: 'easeOutQuart' },
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } },
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 }, color: hasMethodData ? undefined : '#9CA3AF' } },
+          tooltip: { enabled: hasMethodData },
+        },
       },
     });
 
@@ -1073,19 +1103,21 @@
       const key = b.claimed_by_name || 'Unassigned';
       byMaster[key] = (byMaster[key] || 0) + (b.actual_total ?? b.total_price ?? 0);
     });
-    const masterEntries = Object.entries(byMaster).sort((a,b) => b[1] - a[1]);
+    let masterEntries = Object.entries(byMaster).sort((a,b) => b[1] - a[1]);
+    const hasMasterData = masterEntries.length > 0;
+    if(!hasMasterData) masterEntries = [['No completed jobs yet', 0]];
     if(charts.byMaster) charts.byMaster.destroy();
     charts.byMaster = new Chart(document.getElementById('chartByMaster'), {
       type: 'bar',
       data: {
         labels: masterEntries.map(e => e[0]),
-        datasets: [{ data: masterEntries.map(e => e[1]), backgroundColor: COLOR_LEVEL, borderRadius: 6, maxBarThickness: 40 }],
+        datasets: [{ data: masterEntries.map(e => e[1]), backgroundColor: hasMasterData ? COLOR_LEVEL : '#E4E4E7', borderRadius: 6, maxBarThickness: 40 }],
       },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
         animation: { duration: 700, easing: 'easeOutQuart' },
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => '$' + c.parsed.x } } },
-        scales: { x: { beginAtZero: true, ticks: { callback: v => '$' + v } } },
+        plugins: { legend: { display: false }, tooltip: { enabled: hasMasterData, callbacks: { label: c => '$' + c.parsed.x } } },
+        scales: { x: { beginAtZero: true, max: hasMasterData ? undefined : 100, ticks: { callback: v => '$' + v } } },
       },
     });
 
@@ -1108,11 +1140,6 @@
         scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } },
       },
     });
-
-    // Retrigger the entrance animation each time this page is opened.
-    const statsEl = document.getElementById('anStats');
-    const gridEl = document.querySelector('#view-analytics .an-grid');
-    [statsEl, gridEl].forEach(el => { el.classList.remove('an-in'); void el.offsetWidth; el.classList.add('an-in'); });
   }
 
   const ADDON_LABELS = { addon_soundbar:'Soundbar', addon_fireplace:'Above fireplace', addon_shelf:'Wall shelf' };
