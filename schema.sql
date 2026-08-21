@@ -66,6 +66,11 @@ CREATE TABLE IF NOT EXISTS bookings (
   -- only, not for tax filing) — computed once in depart.js, never updated.
   distance_miles REAL,
 
+  -- Whether the client opted in to receive SMS updates. Booking always
+  -- succeeds regardless of this value — consent must never gate the
+  -- transaction (Twilio toll-free verification requirement).
+  sms_consent INTEGER DEFAULT 0,
+
   FOREIGN KEY(claimed_by) REFERENCES users(id)
 );
 
