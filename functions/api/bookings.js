@@ -26,26 +26,28 @@ export async function onRequestPost({ request, env }) {
     address = null, lat = null, lng = null, inServiceArea = null,
     dismount = null, size = null, bracket = null, wall = null, wires = null,
     addons = [], total = 0, date = null, time = null,
-    name = null, phone = null, notes = null, tvs = null,
+    name = null, phone = null, notes = null, tvs = null, smsConsent = false,
   } = body;
 
   const receiptToken = newReceiptToken();
 
   const result = await env.DB.prepare(
     `INSERT INTO bookings
-      (source, status, address, lat, lng, in_service_area, dismount, size, bracket, wall, wires, addons, total_price, booking_date, booking_time, name, phone, notes, receipt_token, tvs_json)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      (source, status, address, lat, lng, in_service_area, dismount, size, bracket, wall, wires, addons, total_price, booking_date, booking_time, name, phone, notes, receipt_token, tvs_json, sms_consent)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).bind(
     source, 'new', address, lat, lng, inServiceArea ? 1 : 0,
     dismount, size, bracket, wall, wires, JSON.stringify(addons || []),
     total, date, time, name, phone, notes, receiptToken,
-    tvs && tvs.length ? JSON.stringify(tvs) : null
+    tvs && tvs.length ? JSON.stringify(tvs) : null,
+    smsConsent ? 1 : 0
   ).run();
 
   const bookingId = result.meta.last_row_id;
 
-  // SMS confirmation to the client
-  if (phone) {
+  // SMS confirmation to the client — only if they opted in. Consent is
+  // never required to book; this just means we stay quiet if they didn't.
+  if (phone && smsConsent) {
     await sendSms(env, phone,
       `Mount It Right: booking confirmed${date ? ' for ' + date : ''}${time ? ' at ' + time : ''}. Total: $${total}. We'll text you when your installer is on the way.`
     );
