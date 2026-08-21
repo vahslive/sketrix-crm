@@ -209,6 +209,32 @@
   .detail-row{ display:flex; justify-content:space-between; font-size:14px; padding:7px 0; }
   .detail-row span{ color:var(--ink-soft); }
   .detail-notes{ font-size:14px; line-height:1.5; color:var(--ink); }
+
+  .chat-thread{ max-height:260px; overflow-y:auto; margin-bottom:10px; display:flex; flex-direction:column; gap:8px; }
+  .chat-msg{ max-width:80%; padding:9px 12px; border-radius:14px; font-size:13px; line-height:1.4; }
+  .chat-msg.mine{ align-self:flex-end; background:var(--signal); color:#fff; border-bottom-right-radius:4px; }
+  .chat-msg.theirs{ align-self:flex-start; background:var(--mist); color:var(--ink); border-bottom-left-radius:4px; }
+  .chat-msg .chat-meta{ font-size:10.5px; opacity:0.7; margin-bottom:3px; font-weight:600; }
+  .chat-empty{ font-size:12.5px; color:var(--ink-soft); text-align:center; padding:12px 0; }
+  .chat-input-row{ display:flex; gap:8px; }
+  .chat-input-row input{ flex:1; padding:10px 14px; font-size:13.5px; border:1.5px solid var(--line); border-radius:100px; background:var(--mist); }
+  .chat-input-row button{ padding:10px 18px; font-size:13px; }
+
+  .messages-layout{ display:flex; gap:20px; height:calc(100vh - 200px); min-height:420px; }
+  .messages-list{ width:280px; flex:none; overflow-y:auto; background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:8px; }
+  .messages-thread{ flex:1; background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:20px; display:flex; flex-direction:column; }
+  .messages-empty{ margin:auto; color:var(--ink-soft); font-size:13.5px; }
+  .messages-thread-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding-bottom:14px; margin-bottom:10px; border-bottom:1px solid var(--line); }
+  .messages-thread-head select{ font-size:12.5px; padding:6px 10px; border-radius:8px; border:1px solid var(--line); background:var(--mist); }
+  .thread-row{ display:flex; align-items:center; gap:10px; padding:12px; border-radius:12px; cursor:pointer; }
+  .thread-row:hover{ background:var(--mist); }
+  .thread-row.active{ background:var(--signal-soft); }
+  .thread-avatar{ width:36px; height:36px; border-radius:50%; background:var(--ink); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex:none; }
+  .thread-row-body{ min-width:0; flex:1; }
+  .thread-row-name{ font-weight:600; font-size:13.5px; }
+  .thread-row-preview{ font-size:12px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .thread-row-time{ font-size:10.5px; color:var(--ink-soft); flex:none; }
+  .job-tag{ display:inline-block; font-size:10px; font-weight:600; color:var(--ink-soft); background:var(--mist); padding:2px 8px; border-radius:100px; margin-bottom:4px; }
   .detail-tv-block{ background:var(--mist); border-radius:12px; padding:12px 14px; margin-bottom:8px; }
   .detail-tv-block .detail-row{ padding:4px 0; }
   .detail-tv-title{ font-family:var(--display); font-weight:700; font-size:13px; margin-bottom:4px; }
@@ -235,6 +261,10 @@
     <div class="nav-item active" data-view="bookings" onclick="switchView('bookings')">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
       Bookings
+    </div>
+    <div class="nav-item" data-view="messages" onclick="switchView('messages')">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H8l-4 4V6a1 1 0 0 1 1-1z"/></svg>
+      Messages
     </div>
     <div class="nav-item" data-view="team" onclick="switchView('team')">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6"/><circle cx="18" cy="8" r="2.5"/><path d="M16 14.5c2.7.4 5 2.4 5 5.5"/></svg>
@@ -294,6 +324,34 @@
           <tbody id="bookingsBody"></tbody>
         </table>
         <div class="empty" id="bookingsEmpty" style="display:none;">No bookings yet.</div>
+      </div>
+    </div>
+
+    <!-- MESSAGES VIEW -->
+    <div class="view" id="view-messages">
+      <div class="page-head">
+        <div>
+          <h1>Messages</h1>
+          <div class="sub">One conversation per master, across every job they've worked.</div>
+        </div>
+      </div>
+
+      <div class="messages-layout">
+        <div class="messages-list" id="messagesList"></div>
+        <div class="messages-thread" id="messagesThreadWrap">
+          <div class="messages-empty" id="messagesEmpty">Pick a master on the left to see the conversation.</div>
+          <div id="messagesThreadBody" style="display:none;">
+            <div class="messages-thread-head">
+              <div id="messagesThreadName" style="font-weight:700;"></div>
+              <select id="messagesJobPicker" style="display:none;"></select>
+            </div>
+            <div class="chat-thread" id="masterChatThread" style="max-height:none; flex:1; padding:4px;"></div>
+            <div class="chat-input-row">
+              <input type="text" id="masterChatInput" placeholder="Message this master…" onkeydown="if(event.key==='Enter') sendMasterMessage()">
+              <button class="btn" onclick="sendMasterMessage()">Send</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -554,6 +612,7 @@
     document.getElementById('view-' + view).classList.add('active');
     closeSidebar();
     if(view === 'payouts') renderPayouts();
+    if(view === 'messages') loadMessagesInbox();
   }
 
   // ---------------- MOBILE SIDEBAR ----------------
@@ -717,11 +776,13 @@
   }
 
   let detailReceiptToken = null;
+  let detailBookingId = null;
 
   function openJobDetail(id){
     const b = allBookings.find(x => x.id === id);
     if(!b) return;
     detailReceiptToken = b.receipt_token;
+    detailBookingId = id;
 
     document.getElementById('detailPrice').textContent = '$' + (b.actual_total ?? b.total_price ?? 0);
 
@@ -759,6 +820,128 @@
     }
 
     switchView('detail');
+    loadMessages(id);
+  }
+
+  // ---------------- CHAT ----------------
+  async function loadMessages(bookingId){
+    const res = await fetch(`/api/messages?booking_id=${bookingId}`, { headers: authHeaders() });
+    if(!res.ok) return;
+    const data = await res.json();
+    const thread = document.getElementById('chatThread');
+    const msgs = data.messages || [];
+    thread.innerHTML = msgs.length
+      ? msgs.map(m => `
+        <div class="chat-msg ${m.sender_id === authUser.id ? 'mine' : 'theirs'}">
+          <div class="chat-meta">${esc(m.sender_name)} · ${new Date(m.created_at + 'Z').toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
+          ${esc(m.body)}
+        </div>`).join('')
+      : `<div class="chat-empty">No messages yet.</div>`;
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  async function sendMessage(){
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if(!text || !detailBookingId) return;
+    input.value = '';
+    await fetch('/api/messages', { method:'POST', headers: authHeaders(true), body: JSON.stringify({ bookingId: detailBookingId, body: text }) });
+    loadMessages(detailBookingId);
+  }
+
+  // ---------------- MESSAGES INBOX (by master) ----------------
+  let currentThreadMasterId = null;
+
+  async function loadMessagesInbox(){
+    const [usersRes, inboxRes] = await Promise.all([
+      fetch('/api/users', { headers: authHeaders() }),
+      fetch('/api/messages/inbox', { headers: authHeaders() }),
+    ]);
+    const usersData = await usersRes.json();
+    const inboxData = await inboxRes.json();
+
+    const masters = (usersData.users || []).filter(u => u.role === 'master');
+    const threadsByMaster = {};
+    (inboxData.threads || []).forEach(t => { threadsByMaster[t.master_id] = t; });
+
+    const list = document.getElementById('messagesList');
+    if(!masters.length){
+      list.innerHTML = `<div class="messages-empty" style="margin:20px 12px;">No masters on the team yet.</div>`;
+      return;
+    }
+
+    const rows = masters
+      .map(m => ({ ...m, thread: threadsByMaster[m.id] || null }))
+      .sort((a, b) => {
+        const at = a.thread ? new Date(a.thread.created_at) : 0;
+        const bt = b.thread ? new Date(b.thread.created_at) : 0;
+        return bt - at;
+      });
+
+    list.innerHTML = rows.map(m => `
+      <div class="thread-row ${currentThreadMasterId === m.id ? 'active' : ''}" onclick="openMasterThread(${m.id}, '${esc(m.name)}')">
+        <div class="thread-avatar">${esc(m.name).slice(0,2).toUpperCase()}</div>
+        <div class="thread-row-body">
+          <div class="thread-row-name">${esc(m.name)}</div>
+          <div class="thread-row-preview">${m.thread ? esc(m.thread.body) : 'No messages yet'}</div>
+        </div>
+        ${m.thread ? `<div class="thread-row-time">${new Date(m.thread.created_at + 'Z').toLocaleDateString([], {month:'short', day:'numeric'})}</div>` : ''}
+      </div>
+    `).join('');
+  }
+
+  async function openMasterThread(masterId, masterName){
+    currentThreadMasterId = masterId;
+    loadMessagesInbox(); // re-render list to highlight the active row
+
+    document.getElementById('messagesEmpty').style.display = 'none';
+    document.getElementById('messagesThreadBody').style.display = 'flex';
+    document.getElementById('messagesThreadBody').style.flexDirection = 'column';
+    document.getElementById('messagesThreadBody').style.flex = '1';
+    document.getElementById('messagesThreadBody').style.minHeight = '0';
+    document.getElementById('messagesThreadName').textContent = masterName;
+
+    const res = await fetch(`/api/messages/by-master?master_id=${masterId}`, { headers: authHeaders() });
+    const data = await res.json();
+    const msgs = data.messages || [];
+
+    const thread = document.getElementById('masterChatThread');
+    thread.innerHTML = msgs.length
+      ? msgs.map(m => `
+        <div class="chat-msg ${m.sender_id === authUser.id ? 'mine' : 'theirs'}">
+          <div class="job-tag">${esc(m.booking_address || 'Job #' + m.booking_id)}</div><br>
+          <div class="chat-meta">${esc(m.sender_name)} · ${new Date(m.created_at + 'Z').toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
+          ${esc(m.body)}
+        </div>`).join('')
+      : `<div class="chat-empty">No messages yet with ${esc(masterName)}.</div>`;
+    thread.scrollTop = thread.scrollHeight;
+
+    // Figure out which job a new message should attach to: if the master
+    // has exactly one active job, pick it silently; with several, let the
+    // admin choose; with none active, fall back to their most recent job.
+    const mine = allBookings.filter(b => b.claimed_by === masterId);
+    const active = mine.filter(b => ['claimed','en_route'].includes(b.status));
+    const picker = document.getElementById('messagesJobPicker');
+
+    if(active.length > 1){
+      picker.style.display = 'inline-block';
+      picker.innerHTML = active.map(b => `<option value="${b.id}">${esc(b.address || 'Job #' + b.id)}</option>`).join('');
+    } else {
+      picker.style.display = 'none';
+      const fallback = active[0] || mine.sort((a,b) => b.id - a.id)[0];
+      picker.innerHTML = fallback ? `<option value="${fallback.id}">${esc(fallback.address || 'Job #' + fallback.id)}</option>` : '';
+    }
+  }
+
+  async function sendMasterMessage(){
+    const input = document.getElementById('masterChatInput');
+    const text = input.value.trim();
+    const picker = document.getElementById('messagesJobPicker');
+    const bookingId = picker.value;
+    if(!text || !bookingId) return;
+    input.value = '';
+    await fetch('/api/messages', { method:'POST', headers: authHeaders(true), body: JSON.stringify({ bookingId, body: text }) });
+    openMasterThread(currentThreadMasterId, document.getElementById('messagesThreadName').textContent);
   }
 
   function renderBookings(){
