@@ -237,6 +237,31 @@
   .job-tag{ display:inline-block; font-size:10px; font-weight:600; color:var(--ink-soft); background:var(--mist); padding:2px 8px; border-radius:100px; margin-bottom:4px; }
   .thread-back-btn{ display:none; }
 
+  .cal-nav{ display:flex; align-items:center; gap:14px; }
+  .cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:8px; margin-bottom:20px; }
+  .cal-dow{ text-align:center; font-size:11px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.04em; padding-bottom:4px; }
+  .cal-cell{
+    aspect-ratio:1; border-radius:12px; border:1px solid var(--line); background:var(--paper);
+    padding:8px; cursor:pointer; display:flex; flex-direction:column; justify-content:space-between; transition:border-color .15s;
+  }
+  .cal-cell:hover{ border-color:var(--signal); }
+  .cal-cell.empty{ visibility:hidden; }
+  .cal-cell.today{ border-color:var(--ink); border-width:1.5px; }
+  .cal-cell.has-bookings{ background:var(--level-soft); }
+  .cal-cell.full{ background:var(--danger-soft); }
+  .cal-daynum{ font-weight:700; font-size:13px; }
+  .cal-count{ font-size:10.5px; color:var(--ink-soft); font-weight:600; }
+  .cal-cell.has-bookings .cal-count{ color:var(--level); }
+  .cal-cell.full .cal-count{ color:var(--danger); }
+
+  .cal-day-panel{ background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:20px; }
+  .cal-day-panel-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .cal-slot{ display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-radius:12px; margin-bottom:8px; }
+  .cal-slot.free{ background:var(--mist); }
+  .cal-slot.taken{ background:var(--signal-soft); cursor:pointer; }
+  .cal-slot-time{ font-weight:700; font-size:13px; font-family:var(--mono); }
+  .cal-slot-info{ font-size:12.5px; color:var(--ink-soft); text-align:right; }
+
   @media (max-width:860px){
     .messages-layout{ height:auto; min-height:0; }
     .messages-list{ width:100%; }
@@ -244,6 +269,11 @@
     .messages-layout.mobile-list-active .messages-list{ display:block; }
     .messages-layout:not(.mobile-list-active) .messages-thread{ display:flex; height:calc(100vh - 220px); }
     .thread-back-btn{ display:inline-flex; align-items:center; gap:4px; background:none; border:none; color:var(--signal); font-weight:600; font-size:13px; padding:0 0 12px; }
+    .cal-grid{ gap:5px; }
+    .cal-cell{ padding:4px; border-radius:8px; }
+    .cal-daynum{ font-size:11.5px; }
+    .cal-count{ font-size:9px; }
+    .cal-dow{ font-size:9.5px; }
   }
   .detail-tv-block{ background:var(--mist); border-radius:12px; padding:12px 14px; margin-bottom:8px; }
   .detail-tv-block .detail-row{ padding:4px 0; }
@@ -287,6 +317,10 @@
     <div class="nav-item active" data-view="bookings" onclick="switchView('bookings')">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
       Bookings
+    </div>
+    <div class="nav-item" data-view="calendar" onclick="switchView('calendar')">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><circle cx="8" cy="15" r="1"/><circle cx="12" cy="15" r="1"/><circle cx="16" cy="15" r="1"/></svg>
+      Calendar
     </div>
     <div class="nav-item" data-view="messages" onclick="switchView('messages')">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H8l-4 4V6a1 1 0 0 1 1-1z"/></svg>
@@ -350,6 +384,31 @@
           <tbody id="bookingsBody"></tbody>
         </table>
         <div class="empty" id="bookingsEmpty" style="display:none;">No bookings yet.</div>
+      </div>
+    </div>
+
+    <!-- CALENDAR VIEW -->
+    <div class="view" id="view-calendar">
+      <div class="page-head">
+        <div>
+          <h1>Calendar</h1>
+          <div class="sub">Every slot, every day — see what's open at a glance.</div>
+        </div>
+        <div class="cal-nav">
+          <button class="btn-outline" onclick="calendarShiftMonth(-1)">←</button>
+          <div id="calMonthLabel" style="font-weight:700; min-width:140px; text-align:center;"></div>
+          <button class="btn-outline" onclick="calendarShiftMonth(1)">→</button>
+        </div>
+      </div>
+
+      <div class="cal-grid" id="calGrid"></div>
+
+      <div class="cal-day-panel" id="calDayPanel" style="display:none;">
+        <div class="cal-day-panel-head">
+          <div id="calDayLabel" style="font-weight:700; font-size:15px;"></div>
+          <button class="btn-cancel" onclick="closeCalDayPanel()">Close</button>
+        </div>
+        <div id="calDaySlots"></div>
       </div>
     </div>
 
@@ -642,6 +701,7 @@
     closeSidebar();
     if(view === 'payouts') renderPayouts();
     if(view === 'messages'){ showMessagesList(); loadMessagesInbox(); }
+    if(view === 'calendar') renderCalendarMonth();
   }
 
   // ---------------- MOBILE SIDEBAR ----------------
@@ -976,6 +1036,92 @@
     input.value = '';
     await fetch('/api/messages', { method:'POST', headers: authHeaders(true), body: JSON.stringify({ bookingId, body: text }) });
     openMasterThread(currentThreadMasterId, document.getElementById('messagesThreadName').textContent);
+  }
+
+  // ---------------- CALENDAR ----------------
+  const ALL_SLOTS = ['9:00 AM','11:00 AM','1:00 PM','3:00 PM','5:00 PM'];
+  const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  let calYear, calMonth; // calMonth is 0-indexed
+
+  (function initCalDate(){
+    const now = new Date();
+    calYear = now.getFullYear();
+    calMonth = now.getMonth();
+  })();
+
+  function calendarShiftMonth(delta){
+    calMonth += delta;
+    if(calMonth < 0){ calMonth = 11; calYear--; }
+    if(calMonth > 11){ calMonth = 0; calYear++; }
+    closeCalDayPanel();
+    renderCalendarMonth();
+  }
+
+  function pad2(n){ return String(n).padStart(2, '0'); }
+
+  function renderCalendarMonth(){
+    document.getElementById('calMonthLabel').textContent = `${MONTH_NAMES[calMonth]} ${calYear}`;
+
+    const firstOfMonth = new Date(calYear, calMonth, 1);
+    // Convert JS Sunday-first weekday (0-6) into Monday-first (0-6) for a Mon..Sun grid.
+    const startOffset = (firstOfMonth.getDay() + 6) % 7;
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+    const todayStr = new Date().toISOString().slice(0,10);
+
+    // Count bookings per date string for this visible month.
+    const countByDate = {};
+    allBookings.forEach(b => {
+      if(b.status === 'cancelled' || !b.booking_date) return;
+      countByDate[b.booking_date] = (countByDate[b.booking_date] || 0) + 1;
+    });
+
+    let html = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => `<div class="cal-dow">${d}</div>`).join('');
+
+    for(let i = 0; i < startOffset; i++) html += `<div class="cal-cell empty"></div>`;
+
+    for(let day = 1; day <= daysInMonth; day++){
+      const dateStr = `${calYear}-${pad2(calMonth+1)}-${pad2(day)}`;
+      const count = countByDate[dateStr] || 0;
+      const isFull = count >= ALL_SLOTS.length;
+      const isToday = dateStr === todayStr;
+      html += `
+        <div class="cal-cell ${count > 0 ? (isFull ? 'full' : 'has-bookings') : ''} ${isToday ? 'today' : ''}" onclick="openCalDayPanel('${dateStr}')">
+          <div class="cal-daynum">${day}</div>
+          <div class="cal-count">${count ? count + ' booked' : ''}</div>
+        </div>`;
+    }
+
+    document.getElementById('calGrid').innerHTML = html;
+  }
+
+  function openCalDayPanel(dateStr){
+    const dayBookings = allBookings.filter(b => b.booking_date === dateStr && b.status !== 'cancelled');
+
+    const dateObj = new Date(dateStr + 'T00:00:00');
+    document.getElementById('calDayLabel').textContent = dateObj.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' });
+
+    document.getElementById('calDaySlots').innerHTML = ALL_SLOTS.map(time => {
+      const booking = dayBookings.find(b => b.booking_time === time);
+      if(booking){
+        return `
+          <div class="cal-slot taken" onclick="openJobDetail(${booking.id})">
+            <span class="cal-slot-time">${time}</span>
+            <span class="cal-slot-info">${esc(booking.name) || 'No name'} · ${esc(booking.address) || 'No address'} · $${booking.actual_total ?? booking.total_price ?? 0}</span>
+          </div>`;
+      }
+      return `
+        <div class="cal-slot free">
+          <span class="cal-slot-time">${time}</span>
+          <span class="cal-slot-info">Free</span>
+        </div>`;
+    }).join('');
+
+    document.getElementById('calDayPanel').style.display = 'block';
+  }
+
+  function closeCalDayPanel(){
+    document.getElementById('calDayPanel').style.display = 'none';
   }
 
   function renderBookings(){
