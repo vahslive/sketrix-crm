@@ -39,7 +39,7 @@ export async function onRequestPost({ request, env, params }) {
     `UPDATE bookings SET status = 'en_route', departed_at = datetime('now'), eta_text = ?, distance_miles = ? WHERE id = ?`
   ).bind(eta.text, eta.miles, params.id).run();
 
-  if (booking.phone) {
+  if (booking.phone && booking.sms_consent) {
     await sendSms(env, booking.phone,
       `Mount It Right: ${user.name} is on the way! Estimated arrival ${eta.text}.`
     );
