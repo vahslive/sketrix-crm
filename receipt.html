@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%230A0A0C'/%3E%3Crect x='9' y='24' width='5' height='9' rx='2.5' fill='%232F5EFF' opacity='0.55'/%3E%3Crect x='17.5' y='17' width='5' height='16' rx='2.5' fill='%232F5EFF' opacity='0.78'/%3E%3Crect x='26' y='8' width='5' height='25' rx='2.5' fill='%232F5EFF'/%3E%3C/svg%3E">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Your Receipt — Mount It Right</title>
@@ -75,20 +76,36 @@
     document.getElementById('err').style.display = 'block';
   }
 
+  function tvRowsFor(tv){
+    const rows = [];
+    for(const key of ['size','dismount','bracket','wall','wires']){
+      const label = LABELS[key][tv[key]];
+      if(label) rows.push(label);
+    }
+    return rows;
+  }
+
   function render(r){
     document.getElementById('dateSub').textContent =
       (r.booking_date || '') + (r.booking_time ? ' · ' + r.booking_time : '') + (r.address ? ' · ' + r.address : '');
 
-    const rows = [];
-    for(const key of ['dismount','size','bracket','wall','wires']){
-      const label = LABELS[key][r[key]];
-      if(label) rows.push(label);
-    }
-    (JSON.parse(r.addons || '[]')).forEach(a => { if(ADDON_LABELS[a]) rows.push(ADDON_LABELS[a]); });
+    let tvs = null;
+    try{ tvs = JSON.parse(r.tvs_json || 'null'); } catch{}
 
-    document.getElementById('rows').innerHTML = rows.map(label =>
-      `<div class="row"><span class="label">${label}</span></div>`
-    ).join('') + `<div class="row"><span class="label">Payment method</span><span>${(r.payment_method||'—')}</span></div>`;
+    let rowsHtml = '';
+    if(tvs && tvs.length > 1){
+      tvs.forEach((tv, i) => {
+        rowsHtml += `<div class="row" style="border-bottom:none; padding-bottom:2px;"><span class="label" style="font-weight:700; color:var(--ink);">TV ${i+1}</span></div>`;
+        tvRowsFor(tv).forEach(label => { rowsHtml += `<div class="row"><span class="label">${label}</span></div>`; });
+      });
+    } else {
+      tvRowsFor(r).forEach(label => { rowsHtml += `<div class="row"><span class="label">${label}</span></div>`; });
+    }
+
+    (JSON.parse(r.addons || '[]')).forEach(a => { if(ADDON_LABELS[a]) rowsHtml += `<div class="row"><span class="label">${ADDON_LABELS[a]}</span></div>`; });
+    rowsHtml += `<div class="row"><span class="label">Payment method</span><span>${(r.payment_method||'—')}</span></div>`;
+
+    document.getElementById('rows').innerHTML = rowsHtml;
 
     const total = r.actual_total != null ? r.actual_total : r.total_price;
     document.getElementById('totalAmt').textContent = '$' + total;
