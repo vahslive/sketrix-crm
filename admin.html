@@ -465,6 +465,12 @@
       <input type="number" id="f-total">
     </div>
     <div class="field-row"><label>Notes</label><textarea id="f-notes" rows="2" placeholder="Anything worth remembering"></textarea></div>
+    <div class="field-row">
+      <label style="display:flex; align-items:flex-start; gap:8px; font-weight:500;">
+        <input type="checkbox" id="f-sms-consent" style="width:auto; margin-top:3px;">
+        <span>Customer verbally agreed to receive SMS updates about this booking</span>
+      </label>
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeAddModal()">Cancel</button>
       <button class="btn" onclick="submitAddBooking()">Save booking</button>
@@ -920,6 +926,7 @@
       total: Number(document.getElementById('f-total').value) || 0,
       notes,
       tvs: allTvs,
+      smsConsent: document.getElementById('f-sms-consent').checked,
     };
     await fetch('/api/bookings', { method:'POST', headers: authHeaders(true), body: JSON.stringify(payload) });
     closeAddModal();
