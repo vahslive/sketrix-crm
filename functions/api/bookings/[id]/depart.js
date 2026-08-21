@@ -36,8 +36,8 @@ export async function onRequestPost({ request, env, params }) {
   const eta = estimateArrivalWindow(lat, lng, booking.lat, booking.lng);
 
   await env.DB.prepare(
-    `UPDATE bookings SET status = 'en_route', departed_at = datetime('now'), eta_text = ? WHERE id = ?`
-  ).bind(eta.text, params.id).run();
+    `UPDATE bookings SET status = 'en_route', departed_at = datetime('now'), eta_text = ?, distance_miles = ? WHERE id = ?`
+  ).bind(eta.text, eta.miles, params.id).run();
 
   if (booking.phone) {
     await sendSms(env, booking.phone,
