@@ -41,7 +41,7 @@ export async function onRequestPost({ request, env, params }) {
 
   const receiptUrl = `${env.SITE_URL || 'https://mountitright.com'}/receipt.html?t=${booking.receipt_token}`;
 
-  if (booking.phone) {
+  if (booking.phone && booking.sms_consent) {
     await sendSms(env, booking.phone,
       `Mount It Right: your installation is complete! Total: $${finalTotal}. Receipt: ${receiptUrl}`
     );
