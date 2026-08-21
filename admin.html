@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%230A0A0C'/%3E%3Crect x='9' y='24' width='5' height='9' rx='2.5' fill='%232F5EFF' opacity='0.55'/%3E%3Crect x='17.5' y='17' width='5' height='16' rx='2.5' fill='%232F5EFF' opacity='0.78'/%3E%3Crect x='26' y='8' width='5' height='25' rx='2.5' fill='%232F5EFF'/%3E%3C/svg%3E">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard — Sketrix</title>
@@ -330,11 +331,22 @@
           <a id="detailAddress" class="detail-address" target="_blank" rel="noopener"></a>
           <div class="detail-meta" id="detailMeta"></div>
 
+          <button class="btn-outline" id="detailReceiptBtn" onclick="openReceipt()" style="margin-bottom:6px;">View receipt</button>
+
           <div class="detail-section" id="detailServices"></div>
 
           <div class="detail-section" id="detailNotesWrap" style="display:none;">
             <div class="detail-label">Notes</div>
             <div class="detail-notes" id="detailNotes"></div>
+          </div>
+
+          <div class="detail-section">
+            <div class="detail-label">Chat with master</div>
+            <div class="chat-thread" id="chatThread"></div>
+            <div class="chat-input-row">
+              <input type="text" id="chatInput" placeholder="Message the technician…" onkeydown="if(event.key==='Enter') sendMessage()">
+              <button class="btn" onclick="sendMessage()">Send</button>
+            </div>
           </div>
         </div>
       </div>
@@ -679,6 +691,14 @@
     return html;
   }
 
+  function openReceipt(){
+    if(!detailReceiptToken){
+      alert('No receipt token on file for this booking (it may predate receipts).');
+      return;
+    }
+    window.open(`receipt.html?t=${detailReceiptToken}`, '_blank');
+  }
+
   function mapsUrlFor(b){
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
     if(b.lat != null && b.lng != null){
@@ -690,9 +710,12 @@
     return isIOS ? `https://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`;
   }
 
+  let detailReceiptToken = null;
+
   function openJobDetail(id){
     const b = allBookings.find(x => x.id === id);
     if(!b) return;
+    detailReceiptToken = b.receipt_token;
 
     document.getElementById('detailPrice').textContent = '$' + (b.actual_total ?? b.total_price ?? 0);
 
