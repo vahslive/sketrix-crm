@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard — Sketrix</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
   :root{
     --paper:#FFFFFF; --mist:#F5F5F6; --ink:#0A0A0C; --ink-soft:#6B6B70;
@@ -262,6 +263,33 @@
   .cal-slot-time{ font-weight:700; font-size:13px; font-family:var(--mono); }
   .cal-slot-info{ font-size:12.5px; color:var(--ink-soft); text-align:right; }
 
+  .fin-filters{ display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:20px; }
+  .fin-field{ display:flex; flex-direction:column; gap:5px; }
+  .fin-field label{ font-size:11px; font-weight:600; color:var(--ink-soft); }
+  .fin-field input, .fin-field select{ padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; background:var(--mist); min-width:110px; }
+  @media (max-width:860px){ .fin-filters{ gap:10px; } .fin-field{ min-width:calc(50% - 5px); } .fin-field input, .fin-field select{ min-width:0; width:100%; } }
+
+  .an-stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+  @media (max-width:900px){ .an-stats{ grid-template-columns:1fr 1fr; } }
+  .an-stat-card{ background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:18px 20px; }
+  .an-stat-lbl{ font-size:11.5px; color:var(--ink-soft); font-weight:600; margin-bottom:8px; }
+  .an-stat-val{ font-family:var(--display); font-weight:800; font-size:24px; margin-bottom:6px; }
+  .an-stat-trend{ font-size:12px; font-weight:700; display:flex; align-items:center; gap:4px; }
+  .an-stat-trend.up{ color:var(--level); }
+  .an-stat-trend.down{ color:var(--danger); }
+  .an-stat-trend.flat{ color:var(--ink-soft); }
+
+  .an-grid{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:900px){ .an-grid{ grid-template-columns:1fr; } }
+  .an-card-wide{ grid-column:1 / -1; }
+  .an-chart-wrap{ height:260px; position:relative; }
+  .an-chart-wrap-small{ height:220px; }
+
+  .an-stats, .an-grid{ opacity:0; transform:translateY(14px); }
+  .an-stats.an-in, .an-grid.an-in{ animation:anFadeUp .5s cubic-bezier(.16,1,.3,1) forwards; }
+  .an-grid.an-in{ animation-delay:.08s; }
+  @keyframes anFadeUp{ to{ opacity:1; transform:translateY(0); } }
+
   @media (max-width:860px){
     .messages-layout{ height:auto; min-height:0; }
     .messages-list{ width:100%; }
@@ -322,6 +350,14 @@
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><circle cx="8" cy="15" r="1"/><circle cx="12" cy="15" r="1"/><circle cx="16" cy="15" r="1"/></svg>
       Calendar
     </div>
+    <div class="nav-item" data-view="finance" onclick="switchView('finance')">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Finance
+    </div>
+    <div class="nav-item" data-view="analytics" onclick="switchView('analytics')">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+      Analytics
+    </div>
     <div class="nav-item" data-view="messages" onclick="switchView('messages')">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H8l-4 4V6a1 1 0 0 1 1-1z"/></svg>
       Messages
@@ -363,7 +399,7 @@
         <div class="stat-card clickable" onclick="filterFromStat('new')"><div class="lbl">New / unclaimed</div><div class="val" id="statNew">0</div></div>
         <div class="stat-card clickable" onclick="filterFromStat('in_progress')"><div class="lbl">In progress</div><div class="val" id="statActive">0</div></div>
         <div class="stat-card clickable" onclick="filterFromStat('completed')"><div class="lbl">Completed</div><div class="val" id="statDone">0</div></div>
-        <div class="stat-card clickable" onclick="switchView('payouts')"><div class="lbl">Revenue (completed)</div><div class="val mono" id="statRevenue">$0</div></div>
+        <div class="stat-card clickable" onclick="switchView('finance')"><div class="lbl">Revenue (completed)</div><div class="val mono" id="statRevenue">$0</div></div>
       </div>
 
       <div class="filters" id="filters">
@@ -409,6 +445,37 @@
           <button class="btn-cancel" onclick="closeCalDayPanel()">Close</button>
         </div>
         <div id="calDaySlots"></div>
+      </div>
+    </div>
+
+    <!-- ANALYTICS VIEW -->
+    <div class="view" id="view-analytics">
+      <div class="page-head">
+        <div>
+          <h1>Analytics</h1>
+          <div class="sub">Trends, growth, and where the business stands this month.</div>
+        </div>
+      </div>
+
+      <div class="an-stats" id="anStats"></div>
+
+      <div class="an-grid">
+        <div class="panel an-card an-card-wide">
+          <h3>Revenue by month</h3>
+          <div class="an-chart-wrap"><canvas id="chartRevenueTrend"></canvas></div>
+        </div>
+        <div class="panel an-card">
+          <h3>Payment methods</h3>
+          <div class="an-chart-wrap an-chart-wrap-small"><canvas id="chartPaymentMethods"></canvas></div>
+        </div>
+        <div class="panel an-card">
+          <h3>Revenue by master</h3>
+          <div class="an-chart-wrap"><canvas id="chartByMaster"></canvas></div>
+        </div>
+        <div class="panel an-card">
+          <h3>Busiest days of the week</h3>
+          <div class="an-chart-wrap"><canvas id="chartByWeekday"></canvas></div>
+        </div>
       </div>
     </div>
 
@@ -498,19 +565,51 @@
       </div>
     </div>
 
-    <!-- PAYOUTS VIEW (full page) -->
-    <div class="view" id="view-payouts">
+    <!-- FINANCE VIEW (full page) -->
+    <div class="view" id="view-finance">
       <div class="page-head">
         <div>
-          <h1>Payouts</h1>
-          <div class="sub">What's been earned, paid out, and what's left.</div>
+          <h1>Finance</h1>
+          <div class="sub">Every completed job, filtered however you need.</div>
         </div>
-        <button class="btn-outline" onclick="switchView('bookings')">← Back to bookings</button>
+      </div>
+
+      <div class="fin-filters">
+        <div class="fin-field">
+          <label>From</label>
+          <input type="date" id="finFrom" onchange="renderFinance()">
+        </div>
+        <div class="fin-field">
+          <label>To</label>
+          <input type="date" id="finTo" onchange="renderFinance()">
+        </div>
+        <div class="fin-field">
+          <label>Master</label>
+          <select id="finMaster" onchange="renderFinance()"><option value="all">All masters</option></select>
+        </div>
+        <div class="fin-field">
+          <label>Payment method</label>
+          <select id="finMethod" onchange="renderFinance()">
+            <option value="all">All methods</option>
+            <option value="cash">Cash</option>
+            <option value="card">Card</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="fin-field">
+          <label>Min $</label>
+          <input type="number" id="finMin" placeholder="0" onchange="renderFinance()">
+        </div>
+        <div class="fin-field">
+          <label>Max $</label>
+          <input type="number" id="finMax" placeholder="No limit" onchange="renderFinance()">
+        </div>
+        <button class="btn-outline" onclick="clearFinanceFilters()">Clear filters</button>
       </div>
 
       <div class="stats">
-        <div class="stat-card"><div class="lbl">Completed jobs</div><div class="val" id="payoutJobs">0</div></div>
-        <div class="stat-card"><div class="lbl">Total revenue</div><div class="val mono" id="payoutRevenue">$0</div></div>
+        <div class="stat-card"><div class="lbl">Jobs</div><div class="val" id="payoutJobs">0</div></div>
+        <div class="stat-card"><div class="lbl">Revenue</div><div class="val mono" id="payoutRevenue">$0</div></div>
         <div class="stat-card"><div class="lbl">Paid to masters</div><div class="val mono" id="payoutPaid">$0</div></div>
         <div class="stat-card"><div class="lbl">Kept by business</div><div class="val mono" id="payoutKept">$0</div></div>
       </div>
@@ -518,6 +617,16 @@
       <div class="panel">
         <h3>By master</h3>
         <div id="payoutsByMaster"></div>
+      </div>
+
+      <div class="panel" style="margin-top:20px;">
+        <h3>Transactions</h3>
+        <div class="table-card" style="border:none;">
+          <table>
+            <thead><tr><th>Date</th><th>Client</th><th>Master</th><th>Method</th><th>Total</th><th>Master got</th><th>Business kept</th></tr></thead>
+            <tbody id="finTransactions"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -699,7 +808,8 @@
     document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
     document.getElementById('view-' + view).classList.add('active');
     closeSidebar();
-    if(view === 'payouts') renderPayouts();
+    if(view === 'finance') renderFinance();
+    if(view === 'analytics') renderAnalytics();
     if(view === 'messages'){ showMessagesList(); loadMessagesInbox(); }
     if(view === 'calendar') renderCalendarMonth();
   }
@@ -758,8 +868,53 @@
     return String(str ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   }
 
-  function renderPayouts(){
-    const done = allBookings.filter(b => b.status === 'completed');
+  function populateFinanceMasterFilter(){
+    const select = document.getElementById('finMaster');
+    const current = select.value;
+    const masterNames = {};
+    allBookings.forEach(b => {
+      if(b.claimed_by && b.claimed_by_name) masterNames[b.claimed_by] = b.claimed_by_name;
+    });
+    const options = Object.entries(masterNames).sort((a,b) => a[1].localeCompare(b[1]));
+    select.innerHTML = `<option value="all">All masters</option>` +
+      options.map(([id, name]) => `<option value="${id}">${esc(name)}</option>`).join('');
+    if([...select.options].some(o => o.value === current)) select.value = current;
+  }
+
+  function clearFinanceFilters(){
+    document.getElementById('finFrom').value = '';
+    document.getElementById('finTo').value = '';
+    document.getElementById('finMaster').value = 'all';
+    document.getElementById('finMethod').value = 'all';
+    document.getElementById('finMin').value = '';
+    document.getElementById('finMax').value = '';
+    renderFinance();
+  }
+
+  function renderFinance(){
+    populateFinanceMasterFilter();
+
+    const from = document.getElementById('finFrom').value;
+    const to = document.getElementById('finTo').value;
+    const masterFilter = document.getElementById('finMaster').value;
+    const methodFilter = document.getElementById('finMethod').value;
+    const min = parseFloat(document.getElementById('finMin').value);
+    const max = parseFloat(document.getElementById('finMax').value);
+
+    let done = allBookings.filter(b => b.status === 'completed');
+
+    done = done.filter(b => {
+      const dateKey = (b.completed_at || '').slice(0,10) || b.booking_date;
+      if(from && dateKey && dateKey < from) return false;
+      if(to && dateKey && dateKey > to) return false;
+      if(masterFilter !== 'all' && String(b.claimed_by) !== masterFilter) return false;
+      if(methodFilter !== 'all' && b.payment_method !== methodFilter) return false;
+      const total = b.actual_total ?? b.total_price ?? 0;
+      if(!isNaN(min) && total < min) return false;
+      if(!isNaN(max) && total > max) return false;
+      return true;
+    });
+
     const revenue = done.reduce((sum,b) => sum + (b.actual_total ?? b.total_price ?? 0), 0);
     const paid = done.reduce((sum,b) => sum + (b.master_earning || 0), 0);
     const kept = revenue - paid;
@@ -784,7 +939,180 @@
           <div><div class="member-name">${esc(name)}</div><div class="member-sub">${d.jobs} job${d.jobs === 1 ? '' : 's'} completed</div></div>
           <div class="price">$${d.earned}</div>
         </div>`).join('')
-      : `<div class="member-sub">No completed jobs yet.</div>`;
+      : `<div class="member-sub">No completed jobs match these filters.</div>`;
+
+    const sortedDone = [...done].sort((a,b) => (b.completed_at || '').localeCompare(a.completed_at || ''));
+    document.getElementById('finTransactions').innerHTML = sortedDone.length
+      ? sortedDone.map(b => {
+          const total = b.actual_total ?? b.total_price ?? 0;
+          const earned = b.master_earning || 0;
+          return `
+          <tr>
+            <td>${esc((b.completed_at || '').slice(0,10)) || '—'}</td>
+            <td>${esc(b.name) || '—'}</td>
+            <td>${esc(b.claimed_by_name) || '—'}</td>
+            <td style="text-transform:capitalize;">${esc(b.payment_method) || '—'}</td>
+            <td class="price">$${total}</td>
+            <td>$${earned}</td>
+            <td>$${total - earned}</td>
+          </tr>`;
+        }).join('')
+      : `<tr><td colspan="7" style="text-align:center; color:var(--ink-soft); padding:24px;">No transactions match these filters.</td></tr>`;
+  }
+
+  // ---------------- ANALYTICS ----------------
+  const COLOR_SIGNAL = '#2F5EFF', COLOR_LEVEL = '#2FB37C', COLOR_WARN = '#B7791F', COLOR_DANGER = '#A32D2D', COLOR_INK_SOFT = '#6B6B70';
+  let charts = {}; // keep instances so we can destroy+recreate on re-render
+
+  function monthKey(dateStr){ return (dateStr || '').slice(0,7); } // 'YYYY-MM'
+  function monthLabel(key){
+    const [y, m] = key.split('-').map(Number);
+    return new Date(y, m-1, 1).toLocaleDateString([], { month:'short', year:'2-digit' });
+  }
+
+  function trendArrow(delta){
+    if(delta > 0.5) return { cls:'up', arrow:'↑' };
+    if(delta < -0.5) return { cls:'down', arrow:'↓' };
+    return { cls:'flat', arrow:'→' };
+  }
+
+  function renderAnalytics(){
+    const done = allBookings.filter(b => b.status === 'completed');
+    const now = new Date();
+    const thisMonthKey = `${now.getFullYear()}-${pad2(now.getMonth()+1)}`;
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
+    const lastMonthKey = `${lastMonthDate.getFullYear()}-${pad2(lastMonthDate.getMonth()+1)}`;
+
+    const inMonth = (b, key) => monthKey(b.completed_at) === key;
+    const thisMonthJobs = done.filter(b => inMonth(b, thisMonthKey));
+    const lastMonthJobs = done.filter(b => inMonth(b, lastMonthKey));
+
+    const sumTotal = arr => arr.reduce((s,b) => s + (b.actual_total ?? b.total_price ?? 0), 0);
+    const revThis = sumTotal(thisMonthJobs), revLast = sumTotal(lastMonthJobs);
+    const revDelta = revLast ? ((revThis - revLast) / revLast * 100) : (revThis ? 100 : 0);
+    const jobsDelta = lastMonthJobs.length ? ((thisMonthJobs.length - lastMonthJobs.length) / lastMonthJobs.length * 100) : (thisMonthJobs.length ? 100 : 0);
+    const avgJobThis = thisMonthJobs.length ? Math.round(revThis / thisMonthJobs.length) : 0;
+    const avgJobLast = lastMonthJobs.length ? Math.round(revLast / lastMonthJobs.length) : 0;
+    const avgDelta = avgJobLast ? ((avgJobThis - avgJobLast) / avgJobLast * 100) : 0;
+
+    const nonCancelled = allBookings.filter(b => b.status !== 'cancelled');
+    const completionRate = nonCancelled.length ? Math.round(done.length / nonCancelled.length * 100) : 0;
+
+    const revT = trendArrow(revDelta), jobsT = trendArrow(jobsDelta), avgT = trendArrow(avgDelta);
+
+    document.getElementById('anStats').innerHTML = `
+      <div class="an-stat-card">
+        <div class="an-stat-lbl">Revenue this month</div>
+        <div class="an-stat-val">$${revThis}</div>
+        <div class="an-stat-trend ${revT.cls}">${revT.arrow} ${Math.abs(revDelta).toFixed(0)}% vs last month</div>
+      </div>
+      <div class="an-stat-card">
+        <div class="an-stat-lbl">Jobs completed</div>
+        <div class="an-stat-val">${thisMonthJobs.length}</div>
+        <div class="an-stat-trend ${jobsT.cls}">${jobsT.arrow} ${Math.abs(jobsDelta).toFixed(0)}% vs last month</div>
+      </div>
+      <div class="an-stat-card">
+        <div class="an-stat-lbl">Avg job value</div>
+        <div class="an-stat-val">$${avgJobThis}</div>
+        <div class="an-stat-trend ${avgT.cls}">${avgT.arrow} ${Math.abs(avgDelta).toFixed(0)}% vs last month</div>
+      </div>
+      <div class="an-stat-card">
+        <div class="an-stat-lbl">Completion rate</div>
+        <div class="an-stat-val">${completionRate}%</div>
+        <div class="an-stat-trend flat">of all non-cancelled jobs</div>
+      </div>`;
+
+    // ---- Revenue by month (last 6 months, oldest to newest) ----
+    const monthKeys = [];
+    for(let i = 5; i >= 0; i--){
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      monthKeys.push(`${d.getFullYear()}-${pad2(d.getMonth()+1)}`);
+    }
+    const revenueByMonth = monthKeys.map(k => sumTotal(done.filter(b => monthKey(b.completed_at) === k)));
+
+    if(charts.trend) charts.trend.destroy();
+    charts.trend = new Chart(document.getElementById('chartRevenueTrend'), {
+      type: 'line',
+      data: {
+        labels: monthKeys.map(monthLabel),
+        datasets: [{
+          data: revenueByMonth,
+          borderColor: COLOR_SIGNAL, backgroundColor: 'rgba(47,94,255,0.08)',
+          fill: true, tension: 0.35, pointRadius: 4, pointBackgroundColor: COLOR_SIGNAL, borderWidth: 2.5,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        animation: { duration: 700, easing: 'easeOutQuart' },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => '$' + c.parsed.y } } },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => '$' + v } }, x: { grid: { display: false } } },
+      },
+    });
+
+    // ---- Payment methods breakdown ----
+    const methodCounts = {};
+    done.forEach(b => { const m = b.payment_method || 'unknown'; methodCounts[m] = (methodCounts[m] || 0) + 1; });
+    const methodLabels = Object.keys(methodCounts);
+    if(charts.methods) charts.methods.destroy();
+    charts.methods = new Chart(document.getElementById('chartPaymentMethods'), {
+      type: 'doughnut',
+      data: {
+        labels: methodLabels.map(m => m.charAt(0).toUpperCase() + m.slice(1)),
+        datasets: [{ data: methodLabels.map(m => methodCounts[m]), backgroundColor: [COLOR_SIGNAL, COLOR_LEVEL, COLOR_WARN, COLOR_INK_SOFT] }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '65%',
+        animation: { duration: 700, easing: 'easeOutQuart' },
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } },
+      },
+    });
+
+    // ---- Revenue by master ----
+    const byMaster = {};
+    done.forEach(b => {
+      const key = b.claimed_by_name || 'Unassigned';
+      byMaster[key] = (byMaster[key] || 0) + (b.actual_total ?? b.total_price ?? 0);
+    });
+    const masterEntries = Object.entries(byMaster).sort((a,b) => b[1] - a[1]);
+    if(charts.byMaster) charts.byMaster.destroy();
+    charts.byMaster = new Chart(document.getElementById('chartByMaster'), {
+      type: 'bar',
+      data: {
+        labels: masterEntries.map(e => e[0]),
+        datasets: [{ data: masterEntries.map(e => e[1]), backgroundColor: COLOR_LEVEL, borderRadius: 6, maxBarThickness: 40 }],
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        animation: { duration: 700, easing: 'easeOutQuart' },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => '$' + c.parsed.x } } },
+        scales: { x: { beginAtZero: true, ticks: { callback: v => '$' + v } } },
+      },
+    });
+
+    // ---- Busiest days of the week ----
+    const weekdayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const byWeekday = [0,0,0,0,0,0,0];
+    allBookings.forEach(b => {
+      if(b.status === 'cancelled' || !b.booking_date) return;
+      const d = new Date(b.booking_date + 'T00:00:00');
+      byWeekday[d.getDay()] += 1;
+    });
+    if(charts.weekday) charts.weekday.destroy();
+    charts.weekday = new Chart(document.getElementById('chartByWeekday'), {
+      type: 'bar',
+      data: { labels: weekdayLabels, datasets: [{ data: byWeekday, backgroundColor: COLOR_SIGNAL, borderRadius: 6, maxBarThickness: 36 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        animation: { duration: 700, easing: 'easeOutQuart' },
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } },
+      },
+    });
+
+    // Retrigger the entrance animation each time this page is opened.
+    const statsEl = document.getElementById('anStats');
+    const gridEl = document.querySelector('#view-analytics .an-grid');
+    [statsEl, gridEl].forEach(el => { el.classList.remove('an-in'); void el.offsetWidth; el.classList.add('an-in'); });
   }
 
   const ADDON_LABELS = { addon_soundbar:'Soundbar', addon_fireplace:'Above fireplace', addon_shelf:'Wall shelf' };
