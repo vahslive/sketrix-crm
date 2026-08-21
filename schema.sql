@@ -61,6 +61,11 @@ CREATE TABLE IF NOT EXISTS bookings (
   -- highest-priced TV in this list, for anything that only reads one TV.
   tvs_json TEXT,
 
+  -- Straight-line distance (miles) from the master's location at the moment
+  -- they hit "Departed" to the job address. Rough by design (internal stats
+  -- only, not for tax filing) — computed once in depart.js, never updated.
+  distance_miles REAL,
+
   FOREIGN KEY(claimed_by) REFERENCES users(id)
 );
 
