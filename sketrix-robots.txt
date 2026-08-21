@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin.html
+Disallow: /master.html
+Disallow: /setup.html
+Disallow: /accept-invite.html
+Disallow: /receipt.html
+
+Sitemap: https://sketrix.com/sitemap.xml
