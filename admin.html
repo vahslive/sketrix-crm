@@ -17,6 +17,59 @@
     --display:'Inter Tight',sans-serif; --body:'Inter',sans-serif; --mono:'IBM Plex Mono',monospace;
     --sidebar-w: 232px;
   }
+  [data-theme="dark"]{
+    --paper:#1C1C1F; --mist:#26262A; --ink:#F5F5F6; --ink-soft:#9B9BA3;
+    --line: rgba(255,255,255,0.09); --signal:#2F9EFF; --signal-soft: rgba(47,158,255,0.14);
+    --level:#44D19A; --level-soft: rgba(68,209,154,0.14);
+    --warn:#E0A64B; --warn-soft: rgba(224,166,75,0.14);
+    --danger:#E05C5C; --danger-soft: rgba(224,92,92,0.14);
+  }
+  [data-theme="dark"] body{ background:#101012; }
+  [data-theme="dark"] .stat-card, [data-theme="dark"] .an-stat-card, [data-theme="dark"] .cal-cell,
+  [data-theme="dark"] .fin-filters, [data-theme="dark"] .panel, [data-theme="dark"] .table-card,
+  [data-theme="dark"] .modal, [data-theme="dark"] .messages-list, [data-theme="dark"] .messages-thread,
+  [data-theme="dark"] .cal-day-panel, [data-theme="dark"] .detail-page, [data-theme="dark"] .an-card{
+    box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 24px rgba(0,0,0,0.25);
+  }
+  [data-theme="dark"] .sidebar{
+    background: linear-gradient(180deg, #17171A 0%, #101012 100%);
+    border-right: 1px solid rgba(255,255,255,0.06);
+  }
+  [data-theme="dark"] .main{
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(47,158,255,0.10), transparent 60%),
+      #101012;
+  }
+  [data-theme="dark"] .nav-item.active{
+    background: var(--signal-soft);
+    box-shadow: 0 0 0 1px rgba(47,158,255,0.25), 0 0 24px rgba(47,158,255,0.12);
+  }
+  [data-theme="dark"] .stat-card.clickable:hover, [data-theme="dark"] .cal-cell:hover{
+    box-shadow: 0 0 0 1px rgba(47,158,255,0.3), 0 0 20px rgba(47,158,255,0.15);
+  }
+  [data-theme="dark"] .cal-cell.has-bookings{ box-shadow: 0 0 16px rgba(68,209,154,0.18); }
+  [data-theme="dark"] .cal-cell.full{ box-shadow: 0 0 16px rgba(224,92,92,0.18); }
+  [data-theme="dark"] ::-webkit-scrollbar{ width:10px; height:10px; }
+  [data-theme="dark"] ::-webkit-scrollbar-thumb{ background:#3a3a40; border-radius:10px; }
+  [data-theme="dark"] .badge.new, [data-theme="dark"] .badge.en_route{ box-shadow:0 0 12px rgba(47,158,255,0.25); }
+  [data-theme="dark"] .badge.claimed{ box-shadow:0 0 12px rgba(224,166,75,0.25); }
+  [data-theme="dark"] .badge.completed{ box-shadow:0 0 12px rgba(68,209,154,0.25); }
+  [data-theme="dark"] .badge.cancelled{ box-shadow:0 0 12px rgba(224,92,92,0.25); }
+
+  .settings-grid{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:900px){ .settings-grid{ grid-template-columns:1fr; } }
+  .theme-row{ display:flex; align-items:center; justify-content:space-between; }
+  .theme-switch{ position:relative; display:inline-block; width:46px; height:26px; flex:none; }
+  .theme-switch input{ opacity:0; width:0; height:0; }
+  .theme-slider{
+    position:absolute; inset:0; background:var(--line); border-radius:100px; cursor:pointer; transition:.2s;
+  }
+  .theme-slider::before{
+    content:''; position:absolute; width:20px; height:20px; left:3px; top:3px; background:#fff;
+    border-radius:50%; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,0.2);
+  }
+  .theme-switch input:checked + .theme-slider{ background:var(--signal); }
+  .theme-switch input:checked + .theme-slider::before{ transform:translateX(20px); }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{
     background:var(--mist); color:var(--ink); font-family:var(--body); font-size:14px;
@@ -368,7 +421,7 @@
     </div>
 
     <div class="sidebar-bottom">
-      <div class="user-chip">
+      <div class="user-chip" onclick="switchView('settings')" style="cursor:pointer;">
         <div class="user-avatar" id="userAvatar">–</div>
         <div>
           <div class="user-name" id="userName">–</div>
@@ -420,6 +473,68 @@
           <tbody id="bookingsBody"></tbody>
         </table>
         <div class="empty" id="bookingsEmpty" style="display:none;">No bookings yet.</div>
+      </div>
+    </div>
+
+    <!-- SETTINGS VIEW -->
+    <div class="view" id="view-settings">
+      <div class="page-head">
+        <div>
+          <h1>Settings</h1>
+          <div class="sub">Your account, your preferences, and who gets pinged.</div>
+        </div>
+      </div>
+
+      <div class="settings-grid">
+        <div class="panel">
+          <h3>Profile</h3>
+          <div class="field-row"><label>Name</label><input type="text" id="setName"></div>
+          <div class="field-row two">
+            <div><label>Email</label><input type="email" id="setEmail"></div>
+            <div><label>Phone</label><input type="tel" id="setPhone"></div>
+          </div>
+          <div id="setProfileMsg" style="font-size:12.5px; margin-top:4px;"></div>
+          <button class="btn" style="margin-top:10px;" onclick="saveProfile()">Save profile</button>
+        </div>
+
+        <div class="panel">
+          <h3>Change password</h3>
+          <div class="field-row"><label>Current password</label><input type="password" id="setCurPw"></div>
+          <div class="field-row two">
+            <div><label>New password</label><input type="password" id="setNewPw"></div>
+            <div><label>Confirm new password</label><input type="password" id="setNewPw2"></div>
+          </div>
+          <div id="setPwMsg" style="font-size:12.5px; margin-top:4px;"></div>
+          <button class="btn" style="margin-top:10px;" onclick="savePassword()">Update password</button>
+        </div>
+
+        <div class="panel">
+          <h3>Appearance</h3>
+          <div class="theme-row">
+            <div>
+              <div style="font-weight:600; font-size:13.5px;">Dark mode</div>
+              <div style="font-size:12px; color:var(--ink-soft);">Easier on the eyes, same everywhere.</div>
+            </div>
+            <label class="theme-switch">
+              <input type="checkbox" id="setThemeToggle" onchange="toggleTheme(this.checked)">
+              <span class="theme-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Notifications</h3>
+          <div class="sub" style="margin-bottom:12px;">Who gets pinged (SMS or email) whenever a new booking comes in.</div>
+          <div id="notifyList" style="margin-bottom:14px;"></div>
+          <div class="field-row two">
+            <div>
+              <label>Type</label>
+              <select id="notifyType"><option value="sms">SMS</option><option value="email">Email</option></select>
+            </div>
+            <div><label>Value</label><input type="text" id="notifyValue" placeholder="+16025550110 or name@email.com"></div>
+          </div>
+          <button class="btn-outline" style="margin-top:8px;" onclick="addNotifyRecipient()">+ Add recipient</button>
+        </div>
       </div>
     </div>
 
@@ -761,6 +876,16 @@
 </div>
 
 <script>
+  // ---------------- THEME ----------------
+  function applyTheme(dark){
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  }
+  function toggleTheme(dark){
+    applyTheme(dark);
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+  }
+  applyTheme(localStorage.getItem('theme') === 'dark');
+
   // ---------------- AUTH GATE ----------------
   let authToken = localStorage.getItem('authToken');
   let authUser = null;
@@ -816,6 +941,7 @@
     if(view === 'analytics') renderAnalytics();
     if(view === 'messages'){ showMessagesList(); loadMessagesInbox(); }
     if(view === 'calendar') renderCalendarMonth();
+    if(view === 'settings') renderSettings();
   }
 
   // ---------------- MOBILE SIDEBAR ----------------
@@ -1723,6 +1849,98 @@
     if(!confirm('Cancel this invite?')) return;
     await fetch(`/api/invites/${id}`, { method:'DELETE', headers: authHeaders() });
     loadTeam();
+  }
+
+  // ---------------- SETTINGS ----------------
+  function renderSettings(){
+    document.getElementById('setName').value = authUser.name || '';
+    document.getElementById('setEmail').value = authUser.email || '';
+    document.getElementById('setPhone').value = authUser.phone || '';
+    document.getElementById('setProfileMsg').textContent = '';
+    document.getElementById('setCurPw').value = '';
+    document.getElementById('setNewPw').value = '';
+    document.getElementById('setNewPw2').value = '';
+    document.getElementById('setPwMsg').textContent = '';
+    document.getElementById('setThemeToggle').checked = document.documentElement.getAttribute('data-theme') === 'dark';
+    loadNotifyRecipients();
+  }
+
+  async function saveProfile(){
+    const msg = document.getElementById('setProfileMsg');
+    msg.style.color = 'var(--ink-soft)'; msg.textContent = 'Saving…';
+    try{
+      const res = await fetch('/api/auth/me', {
+        method: 'PATCH', headers: authHeaders(true),
+        body: JSON.stringify({
+          name: document.getElementById('setName').value,
+          email: document.getElementById('setEmail').value || null,
+          phone: document.getElementById('setPhone').value || null,
+        }),
+      });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Could not save.');
+      authUser = { ...authUser, ...data.user };
+      localStorage.setItem('authUser', JSON.stringify(authUser));
+      document.getElementById('userName').textContent = authUser.name;
+      document.getElementById('userAvatar').textContent = (authUser.name || '?').slice(0,2).toUpperCase();
+      msg.style.color = 'var(--level)'; msg.textContent = 'Saved.';
+    } catch(err){
+      msg.style.color = 'var(--danger)'; msg.textContent = err.message;
+    }
+  }
+
+  async function savePassword(){
+    const msg = document.getElementById('setPwMsg');
+    const cur = document.getElementById('setCurPw').value;
+    const next = document.getElementById('setNewPw').value;
+    const next2 = document.getElementById('setNewPw2').value;
+
+    if(next.length < 6){ msg.style.color = 'var(--danger)'; msg.textContent = 'New password should be at least 6 characters.'; return; }
+    if(next !== next2){ msg.style.color = 'var(--danger)'; msg.textContent = "New passwords don't match."; return; }
+
+    msg.style.color = 'var(--ink-soft)'; msg.textContent = 'Saving…';
+    try{
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST', headers: authHeaders(true),
+        body: JSON.stringify({ currentPassword: cur, newPassword: next }),
+      });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Could not update password.');
+      document.getElementById('setCurPw').value = '';
+      document.getElementById('setNewPw').value = '';
+      document.getElementById('setNewPw2').value = '';
+      msg.style.color = 'var(--level)'; msg.textContent = 'Password updated.';
+    } catch(err){
+      msg.style.color = 'var(--danger)'; msg.textContent = err.message;
+    }
+  }
+
+  async function loadNotifyRecipients(){
+    const res = await fetch('/api/notify-recipients', { headers: authHeaders() });
+    if(!res.ok) return;
+    const data = await res.json();
+    const list = data.recipients || [];
+    document.getElementById('notifyList').innerHTML = list.length
+      ? list.map(r => `
+        <div class="member-row">
+          <div><div class="member-name">${esc(r.value)}</div><div class="member-sub">${r.type.toUpperCase()}</div></div>
+          <button class="row-actions-btn" onclick="removeNotifyRecipient(${r.id})">Remove</button>
+        </div>`).join('')
+      : `<div class="member-sub">No extra recipients — only env-configured ones get pinged.</div>`;
+  }
+
+  async function addNotifyRecipient(){
+    const type = document.getElementById('notifyType').value;
+    const value = document.getElementById('notifyValue').value.trim();
+    if(!value) return;
+    await fetch('/api/notify-recipients', { method:'POST', headers: authHeaders(true), body: JSON.stringify({ type, value }) });
+    document.getElementById('notifyValue').value = '';
+    loadNotifyRecipients();
+  }
+
+  async function removeNotifyRecipient(id){
+    await fetch(`/api/notify-recipients/${id}`, { method:'DELETE', headers: authHeaders() });
+    loadNotifyRecipients();
   }
 
   function openInviteModal(){ document.getElementById('inviteModalOverlay').classList.add('show'); }
