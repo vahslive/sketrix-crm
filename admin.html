@@ -978,6 +978,13 @@
     return h;
   }
 
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible' && currentThreadMasterId && chatSocketWantConnected){
+      connectChatSocket(currentThreadMasterId);
+      openMasterThread(currentThreadMasterId, document.getElementById('messagesThreadName').textContent);
+    }
+  });
+
   checkAuth();
 
   // ---------------- VIEW SWITCHING ----------------
@@ -1654,11 +1661,20 @@
     `;
   }
 
+  let chatSocketWantConnected = false;
+  let chatReconnectAttempt = 0;
+  let chatReconnectTimer = null;
+
   function connectChatSocket(masterId){
     if(chatSocket){ chatSocket.close(); chatSocket = null; }
+    if(chatReconnectTimer){ clearTimeout(chatReconnectTimer); chatReconnectTimer = null; }
+    chatSocketWantConnected = true;
+
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     const url = `${proto}://${location.host}/api/chat-connect?master_id=${masterId}&token=${encodeURIComponent(authToken)}`;
     chatSocket = new WebSocket(url);
+
+    chatSocket.onopen = () => { chatReconnectAttempt = 0; };
 
     chatSocket.onmessage = (event) => {
       try{
@@ -1686,9 +1702,24 @@
       }
     };
     chatSocket.onerror = (err) => console.error('Chat socket error:', err);
+
+    // The Durable Object can go idle and drop the connection, or the
+    // network can blip — reconnect automatically instead of leaving the
+    // thread silently stale until the admin reopens it.
+    chatSocket.onclose = () => {
+      if(!chatSocketWantConnected) return; // we closed it on purpose (navigated away)
+      chatReconnectAttempt++;
+      const delayMs = Math.min(chatReconnectAttempt, 10) * 1000;
+      chatReconnectTimer = setTimeout(() => {
+        connectChatSocket(masterId);
+        if(currentThreadMasterId === masterId) openMasterThread(masterId, document.getElementById('messagesThreadName').textContent);
+      }, delayMs);
+    };
   }
 
   function disconnectChatSocket(){
+    chatSocketWantConnected = false;
+    if(chatReconnectTimer){ clearTimeout(chatReconnectTimer); chatReconnectTimer = null; }
     if(chatSocket){ chatSocket.close(); chatSocket = null; }
   }
 
