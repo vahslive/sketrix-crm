@@ -126,6 +126,11 @@
   .nav-item:hover{ background:var(--mist); color:var(--ink); }
   .nav-item.active{ background:var(--signal-soft); color:var(--signal); }
   .nav-item .ic{ width:16px; height:16px; flex:none; }
+  .nav-badge{
+    width:8px; height:8px; border-radius:50%; background:var(--danger);
+    position:absolute; left:26px; top:8px; box-shadow:0 0 0 2px var(--paper);
+  }
+  [data-theme="dark"] .nav-badge{ box-shadow:0 0 0 2px var(--paper), 0 0 8px rgba(224,92,92,0.5); }
 
   .sidebar-bottom{ margin-top:auto; padding-top:16px; border-top:1px solid var(--line); }
   .user-chip{ display:flex; align-items:center; gap:10px; padding:8px; border-radius:10px; }
@@ -414,8 +419,9 @@
       </svg>
       Sketrix
     </div>
-    <button class="menu-btn" onclick="toggleSidebar()">
+    <button class="menu-btn" onclick="toggleSidebar()" style="position:relative;">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <span id="mobileMenuBadge" class="nav-badge" style="display:none; left:auto; right:4px; top:4px;"></span>
     </button>
   </div>
 
@@ -448,9 +454,10 @@
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
       Analytics
     </div>
-    <div class="nav-item" data-view="messages" onclick="switchView('messages')">
+    <div class="nav-item" data-view="messages" onclick="switchView('messages')" style="position:relative;">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H8l-4 4V6a1 1 0 0 1 1-1z"/></svg>
       Messages
+      <span id="messagesBadge" class="nav-badge" style="display:none;"></span>
     </div>
     <div class="nav-item" data-view="team" onclick="switchView('team')">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6"/><circle cx="18" cy="8" r="2.5"/><path d="M16 14.5c2.7.4 5 2.4 5 5.5"/></svg>
@@ -945,6 +952,7 @@
       document.getElementById('app').style.display = 'flex';
       loadBookings();
       loadTeam();
+      startMessageBadgePolling();
     } catch(err){
       localStorage.removeItem('authToken');
       localStorage.removeItem('authUser');
@@ -981,7 +989,7 @@
     if(view !== 'messages') disconnectChatSocket();
     if(view === 'finance') renderFinance();
     if(view === 'analytics') renderAnalytics();
-    if(view === 'messages'){ showMessagesList(); loadMessagesInbox(); }
+    if(view === 'messages'){ showMessagesList(); loadMessagesInbox(); checkForNewMessages(); }
     if(view === 'calendar') renderCalendarMonth();
     if(view === 'settings') renderSettings();
   }
@@ -1549,6 +1557,52 @@
 
   function showMessagesList(){
     document.getElementById('messagesLayout').classList.add('mobile-list-active');
+  }
+
+  // ---------------- GLOBAL "NEW MESSAGE" BADGE ----------------
+  // Works from any page, not just the Messages view — polls the same
+  // lightweight inbox summary endpoint every 12s and lights up a dot on
+  // the sidebar if anything newer than what we've already seen shows up.
+  let lastSeenMessageId = parseInt(localStorage.getItem('lastSeenMessageId') || '0', 10);
+  let messageBadgeInterval = null;
+
+  function startMessageBadgePolling(){
+    checkForNewMessages();
+    if(messageBadgeInterval) clearInterval(messageBadgeInterval);
+    messageBadgeInterval = setInterval(checkForNewMessages, 12000);
+  }
+
+  async function checkForNewMessages(){
+    try{
+      const res = await fetch('/api/messages/inbox', { headers: authHeaders() });
+      if(!res.ok) return;
+      const data = await res.json();
+      const threads = data.threads || [];
+
+      // Highest incoming (not-mine) message id across every master's thread.
+      const latestIncoming = threads
+        .filter(t => t.sender_id !== authUser.id)
+        .reduce((max, t) => Math.max(max, t.id || 0), 0);
+
+      const viewingMessages = document.getElementById('view-messages').classList.contains('active');
+
+      if(latestIncoming > lastSeenMessageId && !viewingMessages){
+        document.getElementById('messagesBadge').style.display = 'block';
+        document.getElementById('mobileMenuBadge').style.display = 'block';
+      } else if(viewingMessages){
+        // Already looking at the inbox — treat everything as seen.
+        markMessagesSeen(Math.max(latestIncoming, lastSeenMessageId));
+      }
+    } catch(err){
+      // Silent — this is a background convenience check, not critical.
+    }
+  }
+
+  function markMessagesSeen(latestId){
+    lastSeenMessageId = latestId || lastSeenMessageId;
+    localStorage.setItem('lastSeenMessageId', String(lastSeenMessageId));
+    document.getElementById('messagesBadge').style.display = 'none';
+    document.getElementById('mobileMenuBadge').style.display = 'none';
   }
 
   async function loadMessagesInbox(){
