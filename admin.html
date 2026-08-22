@@ -383,7 +383,7 @@
     .messages-list{ width:100%; }
     .messages-list, .messages-thread{ display:none; }
     .messages-layout.mobile-list-active .messages-list{ display:block; }
-    .messages-layout:not(.mobile-list-active) .messages-thread{ display:flex; height:calc(100dvh - 220px); }
+    .messages-layout:not(.mobile-list-active) .messages-thread{ display:flex; }
     .thread-back-btn{ display:inline-flex; align-items:center; gap:4px; background:none; border:none; color:var(--signal); font-weight:600; font-size:13px; padding:0 0 12px; }
     .cal-grid{ gap:5px; }
     .cal-cell{ padding:4px; border-radius:8px; }
@@ -1498,6 +1498,25 @@
   // ---------------- MESSAGES INBOX (by master) ----------------
   let currentThreadMasterId = null;
 
+  // On mobile, the thread pane's height is driven directly by the real
+  // visible viewport (which shrinks when the keyboard opens) rather than
+  // CSS vh/dvh units — Safari does NOT resize dvh for the keyboard, only
+  // for its own address bar, so CSS alone can't track this reliably.
+  function syncMobileThreadHeight(){
+    const wrap = document.getElementById('messagesThreadWrap');
+    if(!wrap) return;
+    const isMobile = window.matchMedia('(max-width:860px)').matches;
+    if(!isMobile){ wrap.style.height = ''; return; }
+    const vv = window.visualViewport;
+    const visibleHeight = vv ? vv.height : window.innerHeight;
+    wrap.style.height = Math.round(visibleHeight - 90) + 'px';
+  }
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', syncMobileThreadHeight);
+    window.visualViewport.addEventListener('scroll', syncMobileThreadHeight);
+  }
+  window.addEventListener('resize', syncMobileThreadHeight);
+
   function showMessagesList(){
     document.getElementById('messagesLayout').classList.add('mobile-list-active');
   }
@@ -1544,6 +1563,7 @@
     currentThreadMasterId = masterId;
     loadMessagesInbox(); // re-render list to highlight the active row
     document.getElementById('messagesLayout').classList.remove('mobile-list-active');
+    syncMobileThreadHeight();
 
     document.getElementById('messagesEmpty').style.display = 'none';
     document.getElementById('messagesThreadBody').style.display = 'flex';
