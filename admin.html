@@ -658,6 +658,8 @@
             </div>
             <div class="chat-thread" id="masterChatThread" style="max-height:none; flex:1; padding:4px;"></div>
             <div class="chat-input-row">
+              <input type="file" id="masterChatFile" accept="image/*,.pdf,.doc,.docx" style="display:none;" onchange="handleChatFileSelect(this, 'master')">
+              <button class="btn-outline" style="padding:10px 12px; flex:none;" onclick="document.getElementById('masterChatFile').click()" title="Attach a file">📎</button>
               <input type="text" id="masterChatInput" placeholder="Message this master…" onkeydown="if(event.key==='Enter') sendMasterMessage()">
               <button class="btn" onclick="sendMasterMessage()">Send</button>
             </div>
@@ -713,6 +715,8 @@
             <div class="detail-label">Chat with master</div>
             <div class="chat-thread" id="chatThread"></div>
             <div class="chat-input-row">
+              <input type="file" id="chatFile" accept="image/*,.pdf,.doc,.docx" style="display:none;" onchange="handleChatFileSelect(this, 'detail')">
+              <button class="btn-outline" style="padding:10px 12px; flex:none;" onclick="document.getElementById('chatFile').click()" title="Attach a file">📎</button>
               <input type="text" id="chatInput" placeholder="Message the technician…" onkeydown="if(event.key==='Enter') sendMessage()">
               <button class="btn" onclick="sendMessage()">Send</button>
             </div>
@@ -1473,6 +1477,14 @@
   }
 
   // ---------------- CHAT ----------------
+  function attachmentHtml(m){
+    if(!m.attachment_url) return '';
+    if(m.attachment_type === 'image'){
+      return `<a href="${m.attachment_url}" target="_blank" rel="noopener"><img src="${m.attachment_url}" style="max-width:200px; max-height:200px; border-radius:10px; display:block; margin-top:6px;"></a>`;
+    }
+    return `<a href="${m.attachment_url}" target="_blank" rel="noopener" style="display:flex; align-items:center; gap:6px; margin-top:6px; padding:8px 10px; background:rgba(0,0,0,0.06); border-radius:8px; font-size:12.5px; color:inherit;">📄 ${esc(m.attachment_name || 'File')}</a>`;
+  }
+
   async function loadMessages(bookingId){
     const res = await fetch(`/api/messages?booking_id=${bookingId}`, { headers: authHeaders() });
     if(!res.ok) return;
@@ -1484,18 +1496,52 @@
         <div class="chat-msg ${m.sender_id === authUser.id ? 'mine' : 'theirs'}">
           <div class="chat-meta">${esc(m.sender_name)} · ${new Date(m.created_at + 'Z').toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
           ${esc(m.body)}
+          ${attachmentHtml(m)}
         </div>`).join('')
       : `<div class="chat-empty">No messages yet.</div>`;
     thread.scrollTop = thread.scrollHeight;
   }
 
-  async function sendMessage(){
+  async function sendMessage(attachment){
     const input = document.getElementById('chatInput');
     const text = input.value.trim();
-    if(!text || !detailBookingId) return;
+    if(!text && !attachment) return;
+    if(!detailBookingId) return;
     input.value = '';
-    await fetch('/api/messages', { method:'POST', headers: authHeaders(true), body: JSON.stringify({ bookingId: detailBookingId, body: text }) });
+    await fetch('/api/messages', {
+      method:'POST', headers: authHeaders(true),
+      body: JSON.stringify({
+        bookingId: detailBookingId, body: text,
+        attachmentUrl: attachment?.url, attachmentType: attachment?.type, attachmentName: attachment?.name,
+      }),
+    });
     loadMessages(detailBookingId);
+  }
+
+  // ---------------- FILE ATTACHMENTS ----------------
+  async function handleChatFileSelect(inputEl, context){
+    const file = inputEl.files[0];
+    inputEl.value = ''; // reset so picking the same file twice still fires change
+    if(!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try{
+      const res = await fetch('/api/messages/upload', {
+        method:'POST',
+        headers: { 'Authorization': 'Bearer ' + authToken }, // no Content-Type — browser sets the multipart boundary
+        body: formData,
+      });
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Upload failed.');
+
+      const attachment = { url: data.url, type: data.type, name: data.name };
+      if(context === 'detail') sendMessage(attachment);
+      else sendMasterMessage(attachment);
+    } catch(err){
+      alert('Could not attach file: ' + err.message);
+    }
   }
 
   // ---------------- MESSAGES INBOX (by master) ----------------
@@ -1550,6 +1596,7 @@
       <div class="job-tag">${esc(m.booking_address || 'Job #' + m.booking_id)}</div><br>
       <div class="chat-meta">${esc(m.sender_name)} · ${new Date(m.created_at + 'Z').toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
       ${esc(m.body)}
+      ${attachmentHtml(m)}
     `;
   }
 
@@ -1632,14 +1679,20 @@
     connectChatSocket(masterId);
   }
 
-  async function sendMasterMessage(){
+  async function sendMasterMessage(attachment){
     const input = document.getElementById('masterChatInput');
     const text = input.value.trim();
     const picker = document.getElementById('messagesJobPicker');
     const bookingId = picker.value;
-    if(!text || !bookingId) return;
+    if((!text && !attachment) || !bookingId) return;
     input.value = '';
-    await fetch('/api/messages', { method:'POST', headers: authHeaders(true), body: JSON.stringify({ bookingId, body: text }) });
+    await fetch('/api/messages', {
+      method:'POST', headers: authHeaders(true),
+      body: JSON.stringify({
+        bookingId, body: text,
+        attachmentUrl: attachment?.url, attachmentType: attachment?.type, attachmentName: attachment?.name,
+      }),
+    });
     openMasterThread(currentThreadMasterId, document.getElementById('messagesThreadName').textContent);
   }
 
