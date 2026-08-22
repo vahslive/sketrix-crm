@@ -1,18 +1,20 @@
-// GET /api/messages/by-master?master_id=X — admin only. Returns every
-// message across every job that master has ever claimed, chronologically,
-// each tagged with which booking it belongs to (so the combined thread
-// still shows which job a message was about).
+// GET /api/messages/by-master?master_id=X — admins can check any master;
+// a master can only check their own thread. Returns every message across
+// every job that master has ever claimed, chronologically, each tagged
+// with which booking it belongs to.
 import { getUserFromRequest } from '../../_lib/auth.js';
 
 export async function onRequestGet({ request, env }) {
   const user = await getUserFromRequest(request, env);
-  if (!user || user.role !== 'admin') {
-    return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!user) return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
 
   const url = new URL(request.url);
   const masterId = url.searchParams.get('master_id');
   if (!masterId) return Response.json({ ok: false, error: 'Missing master_id' }, { status: 400 });
+
+  if (user.role !== 'admin' && String(user.id) !== String(masterId)) {
+    return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+  }
 
   const { results } = await env.DB.prepare(`
     SELECT
