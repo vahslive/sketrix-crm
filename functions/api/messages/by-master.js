@@ -18,6 +18,7 @@ export async function onRequestGet({ request, env }) {
     SELECT
       m.id, m.body, m.created_at, m.sender_id,
       u.name AS sender_name, u.role AS sender_role,
+      m.attachment_url, m.attachment_type, m.attachment_name,
       b.id AS booking_id, b.address AS booking_address,
       b.status AS booking_status, b.booking_date
     FROM messages m
