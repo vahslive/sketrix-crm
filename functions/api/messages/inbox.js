@@ -11,9 +11,10 @@ export async function onRequestGet({ request, env }) {
   }
 
   const { results } = await env.DB.prepare(`
-    SELECT master_id, master_name, body, created_at, sender_id, message_count
+    SELECT id, master_id, master_name, body, created_at, sender_id, message_count
     FROM (
       SELECT
+        m.id AS id,
         u.id AS master_id,
         u.name AS master_name,
         m.body,
