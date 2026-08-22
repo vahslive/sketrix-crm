@@ -84,8 +84,11 @@ CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   booking_id INTEGER NOT NULL,
   sender_id INTEGER NOT NULL,
-  body TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',   -- can be empty if the message is attachment-only
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  attachment_url TEXT,             -- public R2 URL, if any
+  attachment_type TEXT,            -- 'image' | 'file'
+  attachment_name TEXT,            -- original filename, for non-image downloads
   FOREIGN KEY(booking_id) REFERENCES bookings(id),
   FOREIGN KEY(sender_id) REFERENCES users(id)
 );
