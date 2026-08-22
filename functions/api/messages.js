@@ -1,5 +1,5 @@
 // GET  /api/messages?booking_id=X — list messages for a booking (auth required)
-// POST /api/messages { bookingId, body } — post a message (auth required)
+// POST /api/messages { bookingId, body?, attachmentUrl?, attachmentType?, attachmentName? }
 import { getUserFromRequest } from '../_lib/auth.js';
 
 export async function onRequestGet({ request, env }) {
@@ -11,7 +11,8 @@ export async function onRequestGet({ request, env }) {
   if (!bookingId) return Response.json({ ok: false, error: 'Missing booking_id' }, { status: 400 });
 
   const { results } = await env.DB.prepare(
-    `SELECT m.id, m.body, m.created_at, m.sender_id, u.name as sender_name, u.role as sender_role
+    `SELECT m.id, m.body, m.created_at, m.sender_id, u.name as sender_name, u.role as sender_role,
+            m.attachment_url, m.attachment_type, m.attachment_name
      FROM messages m JOIN users u ON u.id = m.sender_id
      WHERE m.booking_id = ? ORDER BY m.created_at ASC`
   ).bind(bookingId).all();
@@ -29,14 +30,15 @@ export async function onRequestPost({ request, env }) {
   } catch {
     return Response.json({ ok: false, error: 'Invalid JSON' }, { status: 400 });
   }
-  const { bookingId, body: text } = body;
-  if (!bookingId || !text) {
-    return Response.json({ ok: false, error: 'Missing bookingId or body' }, { status: 400 });
+  const { bookingId, body: text, attachmentUrl, attachmentType, attachmentName } = body;
+  if (!bookingId || (!text && !attachmentUrl)) {
+    return Response.json({ ok: false, error: 'Message needs text, an attachment, or both.' }, { status: 400 });
   }
 
   const result = await env.DB.prepare(
-    `INSERT INTO messages (booking_id, sender_id, body) VALUES (?, ?, ?)`
-  ).bind(bookingId, user.id, text).run();
+    `INSERT INTO messages (booking_id, sender_id, body, attachment_url, attachment_type, attachment_name)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).bind(bookingId, user.id, text || '', attachmentUrl || null, attachmentType || null, attachmentName || null).run();
 
   // Push the new message to anyone with this master's chat room open right
   // now (admin's Messages inbox, or that master's own app). If this fails
@@ -45,6 +47,7 @@ export async function onRequestPost({ request, env }) {
   try {
     const row = await env.DB.prepare(
       `SELECT m.id, m.body, m.created_at, m.sender_id, u.name as sender_name, u.role as sender_role,
+              m.attachment_url, m.attachment_type, m.attachment_name,
               b.id as booking_id, b.address as booking_address, b.status as booking_status,
               b.booking_date, b.claimed_by
        FROM messages m
