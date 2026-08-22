@@ -1723,7 +1723,9 @@
     if(chatSocket){ chatSocket.close(); chatSocket = null; }
   }
 
-  async function openMasterThread(masterId, masterName){
+  async function openMasterThread(masterId, masterName, forceScrollBottom){
+    const isFreshOpen = currentThreadMasterId !== masterId
+      || document.getElementById('messagesThreadBody').style.display === 'none';
     currentThreadMasterId = masterId;
     loadMessagesInbox(); // re-render list to highlight the active row
     document.getElementById('messagesLayout').classList.remove('mobile-list-active');
@@ -1740,10 +1742,17 @@
     const msgs = data.messages || [];
 
     const thread = document.getElementById('masterChatThread');
+    // Background refreshes (reconnects, tab regaining focus) shouldn't yank
+    // someone reading older messages back down to the bottom — only jump
+    // there on a genuinely fresh open, an explicit force, or if they were
+    // already sitting near the bottom anyway.
+    const wasNearBottom = isFreshOpen || forceScrollBottom
+      || (thread.scrollHeight - thread.scrollTop - thread.clientHeight < 100);
+
     thread.innerHTML = msgs.length
       ? msgs.map(m => `<div class="chat-msg ${m.sender_id === authUser.id ? 'mine' : 'theirs'}">${chatMessageHtml(m)}</div>`).join('')
       : `<div class="chat-empty">No messages yet with ${esc(masterName)}.</div>`;
-    thread.scrollTop = thread.scrollHeight;
+    if(wasNearBottom) thread.scrollTop = thread.scrollHeight;
 
     // Figure out which job a new message should attach to: if the master
     // has exactly one active job, pick it silently; with several, let the
@@ -1778,7 +1787,7 @@
         attachmentUrl: attachment?.url, attachmentType: attachment?.type, attachmentName: attachment?.name,
       }),
     });
-    openMasterThread(currentThreadMasterId, document.getElementById('messagesThreadName').textContent);
+    openMasterThread(currentThreadMasterId, document.getElementById('messagesThreadName').textContent, true);
   }
 
   // ---------------- CALENDAR ----------------
