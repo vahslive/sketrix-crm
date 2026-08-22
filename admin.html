@@ -974,6 +974,7 @@
     document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
     document.getElementById('view-' + view).classList.add('active');
     closeSidebar();
+    if(view !== 'messages') disconnectChatSocket();
     if(view === 'finance') renderFinance();
     if(view === 'analytics') renderAnalytics();
     if(view === 'messages'){ showMessagesList(); loadMessagesInbox(); }
@@ -1542,6 +1543,54 @@
     `).join('');
   }
 
+  let chatSocket = null;
+
+  function chatMessageHtml(m){
+    return `
+      <div class="job-tag">${esc(m.booking_address || 'Job #' + m.booking_id)}</div><br>
+      <div class="chat-meta">${esc(m.sender_name)} · ${new Date(m.created_at + 'Z').toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
+      ${esc(m.body)}
+    `;
+  }
+
+  function connectChatSocket(masterId){
+    if(chatSocket){ chatSocket.close(); chatSocket = null; }
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const url = `${proto}://${location.host}/api/chat-connect?master_id=${masterId}&token=${encodeURIComponent(authToken)}`;
+    chatSocket = new WebSocket(url);
+
+    chatSocket.onmessage = (event) => {
+      try{
+        const data = JSON.parse(event.data);
+        if(data.type !== 'new_message') return;
+
+        // Update the inbox preview regardless of which thread is open.
+        loadMessagesInbox();
+
+        // Only append to the visible thread if we're still looking at
+        // the master this message belongs to.
+        if(currentThreadMasterId !== masterId) return;
+
+        const thread = document.getElementById('masterChatThread');
+        const empty = thread.querySelector('.chat-empty');
+        if(empty) empty.remove();
+
+        const div = document.createElement('div');
+        div.className = `chat-msg ${data.message.sender_id === authUser.id ? 'mine' : 'theirs'}`;
+        div.innerHTML = chatMessageHtml(data.message);
+        thread.appendChild(div);
+        thread.scrollTop = thread.scrollHeight;
+      } catch(err){
+        console.error('Bad realtime chat payload:', err);
+      }
+    };
+    chatSocket.onerror = (err) => console.error('Chat socket error:', err);
+  }
+
+  function disconnectChatSocket(){
+    if(chatSocket){ chatSocket.close(); chatSocket = null; }
+  }
+
   async function openMasterThread(masterId, masterName){
     currentThreadMasterId = masterId;
     loadMessagesInbox(); // re-render list to highlight the active row
@@ -1560,12 +1609,7 @@
 
     const thread = document.getElementById('masterChatThread');
     thread.innerHTML = msgs.length
-      ? msgs.map(m => `
-        <div class="chat-msg ${m.sender_id === authUser.id ? 'mine' : 'theirs'}">
-          <div class="job-tag">${esc(m.booking_address || 'Job #' + m.booking_id)}</div><br>
-          <div class="chat-meta">${esc(m.sender_name)} · ${new Date(m.created_at + 'Z').toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
-          ${esc(m.body)}
-        </div>`).join('')
+      ? msgs.map(m => `<div class="chat-msg ${m.sender_id === authUser.id ? 'mine' : 'theirs'}">${chatMessageHtml(m)}</div>`).join('')
       : `<div class="chat-empty">No messages yet with ${esc(masterName)}.</div>`;
     thread.scrollTop = thread.scrollHeight;
 
@@ -1584,6 +1628,8 @@
       const fallback = active[0] || mine.sort((a,b) => b.id - a.id)[0];
       picker.innerHTML = fallback ? `<option value="${fallback.id}">${esc(fallback.address || 'Job #' + fallback.id)}</option>` : '';
     }
+
+    connectChatSocket(masterId);
   }
 
   async function sendMasterMessage(){
