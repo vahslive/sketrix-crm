@@ -34,9 +34,36 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: false, error: 'Missing bookingId or body' }, { status: 400 });
   }
 
-  await env.DB.prepare(
+  const result = await env.DB.prepare(
     `INSERT INTO messages (booking_id, sender_id, body) VALUES (?, ?, ?)`
   ).bind(bookingId, user.id, text).run();
+
+  // Push the new message to anyone with this master's chat room open right
+  // now (admin's Messages inbox, or that master's own app). If this fails
+  // for any reason, the message is still safely saved — realtime is a nice
+  // extra, never a requirement for the message to exist.
+  try {
+    const row = await env.DB.prepare(
+      `SELECT m.id, m.body, m.created_at, m.sender_id, u.name as sender_name, u.role as sender_role,
+              b.id as booking_id, b.address as booking_address, b.status as booking_status,
+              b.booking_date, b.claimed_by
+       FROM messages m
+       JOIN users u ON u.id = m.sender_id
+       JOIN bookings b ON b.id = m.booking_id
+       WHERE m.id = ?`
+    ).bind(result.meta.last_row_id).first();
+
+    if (row && row.claimed_by) {
+      const id = env.CHAT_ROOM.idFromName(`master:${row.claimed_by}`);
+      const room = env.CHAT_ROOM.get(id);
+      await room.fetch('https://internal/broadcast', {
+        method: 'POST',
+        body: JSON.stringify({ type: 'new_message', message: row }),
+      });
+    }
+  } catch (err) {
+    console.error('Realtime broadcast failed (message was still saved):', err);
+  }
 
   return Response.json({ ok: true });
 }
