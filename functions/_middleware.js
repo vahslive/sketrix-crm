@@ -24,6 +24,14 @@ export async function onRequest({ request, next }) {
   }
 
   const response = await next();
+
+  // WebSocket upgrade responses carry a special `webSocket` property that
+  // isn't part of body/status/headers — rebuilding the Response for CORS
+  // purposes silently drops it and breaks the upgrade. CORS headers don't
+  // meaningfully apply to a WebSocket handshake anyway, so just pass these
+  // straight through untouched.
+  if (response.webSocket) return response;
+
   const headers = new Headers(response.headers);
   headers.set('Access-Control-Allow-Origin', allowOrigin);
   return new Response(response.body, { status: response.status, headers });
