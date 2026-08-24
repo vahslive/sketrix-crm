@@ -71,6 +71,12 @@ CREATE TABLE IF NOT EXISTS bookings (
   -- transaction (Twilio toll-free verification requirement).
   sms_consent INTEGER DEFAULT 0,
 
+  -- Post-job star rating, left by the client from the receipt page.
+  -- 5 stars nudges toward a public Google review; anything lower stays
+  -- private here as feedback instead.
+  rating INTEGER,
+  feedback TEXT,
+
   FOREIGN KEY(claimed_by) REFERENCES users(id)
 );
 
