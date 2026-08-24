@@ -2,9 +2,12 @@
 // receipt_token (not the booking id), so it can't be guessed/enumerated.
 export async function onRequestGet({ env, params }) {
   const booking = await env.DB.prepare(
-    `SELECT id, name, address, dismount, size, bracket, wall, wires, addons,
-            total_price, actual_total, payment_method, completed_at, booking_date, booking_time
-     FROM bookings WHERE receipt_token = ?`
+    `SELECT b.id, b.name, b.address, b.dismount, b.size, b.bracket, b.wall, b.wires, b.addons, b.tvs_json,
+            b.total_price, b.actual_total, b.payment_method, b.completed_at, b.booking_date, b.booking_time,
+            u.name AS master_name
+     FROM bookings b
+     LEFT JOIN users u ON u.id = b.claimed_by
+     WHERE b.receipt_token = ?`
   ).bind(params.token).first();
 
   if (!booking) {
