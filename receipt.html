@@ -24,11 +24,37 @@
   .total{ display:flex; justify-content:space-between; align-items:center; margin-top:20px; padding-top:20px; border-top:1.5px solid var(--ink); }
   .total .amt{ font-family:var(--display); font-size:28px; font-weight:800; }
   #err{ display:none; text-align:center; color:var(--ink-soft); }
+  .logo-mark{ width:32px; height:32px; border-radius:8px; margin-bottom:16px; }
+  .footer{ margin-top:24px; padding-top:20px; border-top:1px solid var(--line); font-size:12px; color:var(--ink-soft); text-align:center; line-height:1.7; }
+  .footer a{ color:var(--ink-soft); text-decoration:none; }
+  .footer a:hover{ text-decoration:underline; }
+
+  .warranty{ margin-top:20px; padding:14px 16px; background:var(--mist); border-radius:12px; font-size:12px; color:var(--ink-soft); line-height:1.6; }
+  .warranty strong{ color:var(--ink); }
+
+  .rate-section{ margin-top:24px; padding-top:24px; border-top:1px solid var(--line); text-align:center; }
+  .rate-title{ font-family:var(--display); font-weight:700; font-size:15px; margin-bottom:12px; }
+  .stars{ display:flex; justify-content:center; gap:6px; margin-bottom:6px; }
+  .star-btn{ background:none; border:none; cursor:pointer; padding:2px; line-height:0; }
+  .star-btn svg{ width:30px; height:30px; transition:transform .1s; }
+  .star-btn:hover svg{ transform:scale(1.1); }
+
+  .rate-followup{ margin-top:16px; }
+  .review-cta{ display:inline-block; margin-top:10px; padding:12px 24px; background:var(--level); color:#fff; border-radius:100px; font-weight:700; font-size:13.5px; text-decoration:none; }
+  .feedback-box{ width:100%; margin-top:12px; padding:10px 12px; border:1.5px solid var(--line); border-radius:10px; font-family:inherit; font-size:13px; resize:vertical; min-height:70px; }
+  .feedback-submit{ margin-top:10px; padding:10px 22px; background:var(--ink); color:var(--paper); border:none; border-radius:100px; font-weight:700; font-size:13px; cursor:pointer; }
+  .rate-thanks{ color:var(--ink-soft); font-size:13px; margin-top:8px; }
 </style>
 </head>
 <body>
 
 <div class="card" id="card">
+  <svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+    <rect width="40" height="40" rx="10" fill="#0A0A0C"/>
+    <rect x="9" y="24" width="5" height="9" rx="2.5" fill="#2F5EFF" opacity="0.55"/>
+    <rect x="17.5" y="17" width="5" height="16" rx="2.5" fill="#2F5EFF" opacity="0.78"/>
+    <rect x="26" y="8" width="5" height="25" rx="2.5" fill="#2F5EFF"/>
+  </svg>
   <div class="badge">
     <svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M4 12l5 5L20 6" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </div>
@@ -38,6 +64,21 @@
   <div class="total">
     <span>Total</span>
     <span class="amt" id="totalAmt">$0</span>
+  </div>
+
+  <div class="warranty">
+    <strong>Workmanship guarantee.</strong> Every mount is backed by a 1-year workmanship warranty — if a bracket loosens or a mount needs adjustment from how we installed it, we'll come fix it at no charge. This doesn't cover damage from moving, wall repairs unrelated to the mount, or issues with the TV itself.
+  </div>
+
+  <div class="rate-section" id="rateSection">
+    <div class="rate-title">How was the work?</div>
+    <div class="stars" id="stars"></div>
+    <div id="rateFollowup"></div>
+  </div>
+
+  <div class="footer">
+    Mount It Right · Phoenix, AZ & the Valley<br>
+    <a href="tel:+16237920747">(623) 792-0747</a> · <a href="mailto:info@mountitright.com">info@mountitright.com</a>
   </div>
 </div>
 
@@ -59,8 +100,75 @@
   };
   const ADDON_LABELS = { addon_soundbar: 'Soundbar install', addon_fireplace: 'Above-fireplace mount', addon_shelf: 'Wall shelf' };
 
+  // TODO: once the Google Business Profile is live, replace this with the
+  // real review link — format: https://search.google.com/local/writereview?placeid=YOUR_PLACE_ID
+  // Until then this falls back to a search results page for the business.
+  const GOOGLE_REVIEW_URL = 'https://www.google.com/search?q=Mount+It+Right+Phoenix+AZ';
+
+  let currentToken = null;
+
+  function renderStars(){
+    const starsEl = document.getElementById('stars');
+    starsEl.innerHTML = [1,2,3,4,5].map(n => `
+      <button class="star-btn" data-n="${n}" onclick="selectRating(${n})">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" stroke-width="1.5">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+      </button>`).join('');
+  }
+
+  function paintStars(n){
+    document.querySelectorAll('.star-btn').forEach(btn => {
+      const filled = Number(btn.dataset.n) <= n;
+      btn.querySelector('svg').setAttribute('fill', filled ? '#F5B942' : 'none');
+      btn.querySelector('svg').setAttribute('stroke', filled ? '#F5B942' : 'var(--ink-soft)');
+    });
+  }
+
+  async function selectRating(n){
+    paintStars(n);
+    document.querySelectorAll('.star-btn').forEach(btn => btn.onclick = null); // lock it in after one tap
+
+    try{
+      await fetch(`/api/receipt/${currentToken}/rate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating: n }),
+      });
+    } catch{}
+
+    const followup = document.getElementById('rateFollowup');
+    if(n === 5){
+      followup.innerHTML = `
+        <div class="rate-followup">
+          <div class="rate-thanks">That's great to hear! Mind sharing it publicly?</div>
+          <a class="review-cta" href="${GOOGLE_REVIEW_URL}" target="_blank" rel="noopener">Leave a Google review</a>
+        </div>`;
+    } else {
+      followup.innerHTML = `
+        <div class="rate-followup">
+          <div class="rate-thanks">Thanks for the honest feedback — what could we have done better?</div>
+          <textarea class="feedback-box" id="feedbackText" placeholder="Optional, but it helps us improve…"></textarea>
+          <br>
+          <button class="feedback-submit" onclick="submitFeedback(${n})">Send feedback</button>
+        </div>`;
+    }
+  }
+
+  async function submitFeedback(n){
+    const text = document.getElementById('feedbackText').value.trim();
+    try{
+      await fetch(`/api/receipt/${currentToken}/rate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating: n, feedback: text }),
+      });
+    } catch{}
+    document.getElementById('rateFollowup').innerHTML = `<div class="rate-thanks">Thanks — we read every one of these.</div>`;
+  }
+
   async function load(){
     if(!token){ showError(); return; }
+    currentToken = token;
+    renderStars();
     try{
       const res = await fetch('/api/receipt/' + token);
       if(!res.ok) throw new Error('not found');
@@ -93,6 +201,7 @@
     try{ tvs = JSON.parse(r.tvs_json || 'null'); } catch{}
 
     let rowsHtml = '';
+    if(r.master_name) rowsHtml += `<div class="row"><span class="label">Installed by</span><span>${r.master_name}</span></div>`;
     if(tvs && tvs.length > 1){
       tvs.forEach((tv, i) => {
         rowsHtml += `<div class="row" style="border-bottom:none; padding-bottom:2px;"><span class="label" style="font-weight:700; color:var(--ink);">TV ${i+1}</span></div>`;
