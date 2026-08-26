@@ -9,7 +9,12 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,   -- format: pbkdf2$<saltHex>$<hashHex>
   role TEXT NOT NULL DEFAULT 'master', -- 'admin' | 'master'
   active INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+
+  -- Stripe Connect — set once a master completes onboarding, so we know
+  -- where to transfer their share after a card payment.
+  stripe_account_id TEXT,
+  stripe_onboarding_complete INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -82,6 +87,10 @@ CREATE TABLE IF NOT EXISTS bookings (
   rating INTEGER,
   feedback TEXT,
 
+  -- Stripe Tap to Pay tracking for this job's payment, if paid by card.
+  stripe_payment_intent_id TEXT,
+  stripe_split_done INTEGER NOT NULL DEFAULT 0,
+
   FOREIGN KEY(claimed_by) REFERENCES users(id)
 );
 
@@ -130,3 +139,19 @@ CREATE TABLE IF NOT EXISTS invites (
   FOREIGN KEY(created_by) REFERENCES users(id)
 );
 CREATE INDEX IF NOT EXISTS idx_invites_token ON invites(token);
+
+-- One row per business on the Sketrix platform. Just Mount It Right today,
+-- but built so a second real business slots in without any migration —
+-- each gets its own Stripe Connect account and its own platform fee.
+CREATE TABLE IF NOT EXISTS businesses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  stripe_account_id TEXT,
+  stripe_onboarding_complete INTEGER NOT NULL DEFAULT 0,
+  platform_fee_percent REAL NOT NULL DEFAULT 5,   -- Sketrix's cut
+  business_share_percent REAL NOT NULL DEFAULT 55, -- this business's cut
+  master_share_percent REAL NOT NULL DEFAULT 40,   -- the technician's cut
+  stripe_location_id TEXT, -- required by Stripe Terminal to connect a reader
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+INSERT OR IGNORE INTO businesses (name) VALUES ('Mount It Right');
