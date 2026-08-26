@@ -651,7 +651,10 @@
           <div class="an-chart-wrap an-chart-wrap-small"><canvas id="chartBySource"></canvas></div>
         </div>
         <div class="panel an-card">
-          <h3>Average time per job</h3>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3>Average time per job</h3>
+            <button class="row-actions-btn" onclick="openTimeBreakdownModal()">View by master →</button>
+          </div>
           <div class="an-chart-wrap an-chart-wrap-small"><canvas id="chartTimeBreakdown"></canvas></div>
         </div>
       </div>
@@ -921,6 +924,17 @@
 </div>
 
 <!-- INVITE MODAL -->
+<div class="modal-overlay" id="timeBreakdownModalOverlay">
+  <div class="modal" style="max-width:520px;">
+    <h2>Time per job, by master</h2>
+    <div class="sub" style="margin-bottom:14px;">Average drive time and on-site work time, per master, across every completed job with full timing data.</div>
+    <div id="timeBreakdownList"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeTimeBreakdownModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="inviteModalOverlay">
   <div class="modal">
     <h2>Invite someone</h2>
@@ -1255,6 +1269,8 @@
     }
   }
 
+  const minsBetween = (fromIso, toIso) => (new Date(toIso + 'Z') - new Date(fromIso + 'Z')) / 60000;
+
   function renderAnalyticsCharts(done, now, sumTotal){
     // ---- Revenue by month (last 6 months, oldest to newest) ----
     const monthKeys = [];
@@ -1386,8 +1402,6 @@
     });
 
     // ---- Average time per job (drive vs on-site work) ----
-    const minsBetween = (fromIso, toIso) => (new Date(toIso + 'Z') - new Date(fromIso + 'Z')) / 60000;
-
     const driveTimes = [];
     const workTimes = [];
     allBookings.forEach(b => {
@@ -1419,6 +1433,44 @@
         scales: { x: { beginAtZero: true, max: hasTimeData ? undefined : 60, ticks: { callback: v => v + 'm' } } },
       },
     });
+  }
+
+  // ---------------- TIME BREAKDOWN BY MASTER (modal) ----------------
+  function openTimeBreakdownModal(){
+    const byMaster = {};
+    allBookings.forEach(b => {
+      if(!b.claimed_by_name) return;
+      const key = b.claimed_by_name;
+      if(!byMaster[key]) byMaster[key] = { drive: [], work: [] };
+      if(b.departed_at && b.started_at) byMaster[key].drive.push(minsBetween(b.departed_at, b.started_at));
+      if(b.started_at && b.completed_at) byMaster[key].work.push(minsBetween(b.started_at, b.completed_at));
+    });
+
+    const avg = arr => arr.length ? Math.round(arr.reduce((s,v) => s+v, 0) / arr.length) : null;
+    const entries = Object.entries(byMaster)
+      .map(([name, d]) => ({ name, avgDrive: avg(d.drive), avgWork: avg(d.work), jobs: d.work.length }))
+      .filter(e => e.avgDrive !== null || e.avgWork !== null)
+      .sort((a, b) => (b.avgWork || 0) - (a.avgWork || 0));
+
+    document.getElementById('timeBreakdownList').innerHTML = entries.length
+      ? entries.map(e => `
+        <div class="member-row">
+          <div>
+            <div class="member-name">${esc(e.name)}</div>
+            <div class="member-sub">${e.jobs} job${e.jobs === 1 ? '' : 's'} with full timing data</div>
+          </div>
+          <div style="text-align:right; font-size:12.5px;">
+            <div><span style="color:var(--warn); font-weight:700;">${e.avgDrive ?? '—'}m</span> drive</div>
+            <div><span style="color:var(--level); font-weight:700;">${e.avgWork ?? '—'}m</span> work</div>
+          </div>
+        </div>`).join('')
+      : `<div class="member-sub">No masters have full timing data yet — needs Departed, Started, and Completed timestamps on at least one job.</div>`;
+
+    document.getElementById('timeBreakdownModalOverlay').classList.add('show');
+  }
+
+  function closeTimeBreakdownModal(){
+    document.getElementById('timeBreakdownModalOverlay').classList.remove('show');
   }
 
   const ADDON_LABELS = { addon_soundbar:'Soundbar', addon_fireplace:'Above fireplace', addon_shelf:'Wall shelf' };
