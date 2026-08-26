@@ -303,6 +303,17 @@
   .detail-row span{ color:var(--ink-soft); }
   .detail-notes{ font-size:14px; line-height:1.5; color:var(--ink); }
 
+  .tl-row{ display:flex; gap:12px; padding:8px 0; }
+  .tl-dot-col{ display:flex; flex-direction:column; align-items:center; width:10px; flex:none; }
+  .tl-dot{ width:9px; height:9px; border-radius:50%; background:var(--signal); flex:none; margin-top:4px; }
+  .tl-dot.pending{ background:var(--line); }
+  .tl-line{ width:1.5px; flex:1; background:var(--line); margin-top:2px; }
+  .tl-body{ flex:1; padding-bottom:2px; }
+  .tl-label{ font-size:13px; font-weight:600; color:var(--ink); }
+  .tl-time{ font-size:11.5px; color:var(--ink-soft); }
+  .tl-gap{ font-size:11px; color:var(--signal); font-weight:600; margin-left:auto; padding-left:10px; text-align:right; white-space:nowrap; }
+  .tl-pending{ color:var(--ink-soft); font-style:italic; }
+
   .chat-thread{ max-height:260px; overflow-y:auto; margin-bottom:10px; display:flex; flex-direction:column; gap:8px; }
   .chat-msg{ max-width:80%; padding:9px 12px; border-radius:14px; font-size:13px; line-height:1.4; }
   .chat-msg.mine{ align-self:flex-end; background:var(--signal); color:#fff; border-bottom-right-radius:4px; }
@@ -639,6 +650,10 @@
           <h3>Where bookings come from</h3>
           <div class="an-chart-wrap an-chart-wrap-small"><canvas id="chartBySource"></canvas></div>
         </div>
+        <div class="panel an-card">
+          <h3>Average time per job</h3>
+          <div class="an-chart-wrap an-chart-wrap-small"><canvas id="chartTimeBreakdown"></canvas></div>
+        </div>
       </div>
     </div>
 
@@ -716,6 +731,11 @@
           <div class="detail-section" id="detailNotesWrap" style="display:none;">
             <div class="detail-label">Notes</div>
             <div class="detail-notes" id="detailNotes"></div>
+          </div>
+
+          <div class="detail-section" id="detailTimelineWrap" style="display:none;">
+            <div class="detail-label">Timeline</div>
+            <div id="detailTimeline"></div>
           </div>
 
           <div class="detail-section">
@@ -1364,6 +1384,41 @@
         },
       },
     });
+
+    // ---- Average time per job (drive vs on-site work) ----
+    const minsBetween = (fromIso, toIso) => (new Date(toIso + 'Z') - new Date(fromIso + 'Z')) / 60000;
+
+    const driveTimes = [];
+    const workTimes = [];
+    allBookings.forEach(b => {
+      if(b.departed_at && b.started_at) driveTimes.push(minsBetween(b.departed_at, b.started_at));
+      if(b.started_at && b.completed_at) workTimes.push(minsBetween(b.started_at, b.completed_at));
+    });
+    const avg = arr => arr.length ? Math.round(arr.reduce((s,v) => s+v, 0) / arr.length) : 0;
+    const avgDrive = avg(driveTimes), avgWork = avg(workTimes);
+    const hasTimeData = driveTimes.length > 0 || workTimes.length > 0;
+
+    if(charts.timeBreakdown) charts.timeBreakdown.destroy();
+    charts.timeBreakdown = new Chart(document.getElementById('chartTimeBreakdown'), {
+      type: 'bar',
+      data: {
+        labels: ['Drive time', 'On-site work'],
+        datasets: [{
+          data: hasTimeData ? [avgDrive, avgWork] : [0, 0],
+          backgroundColor: [COLOR_WARN, COLOR_LEVEL],
+          borderRadius: 8, maxBarThickness: 60,
+        }],
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        animation: { duration: 700, easing: 'easeOutQuart' },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: c => `${c.parsed.x} min avg` } },
+        },
+        scales: { x: { beginAtZero: true, max: hasTimeData ? undefined : 60, ticks: { callback: v => v + 'm' } } },
+      },
+    });
   }
 
   const ADDON_LABELS = { addon_soundbar:'Soundbar', addon_fireplace:'Above fireplace', addon_shelf:'Wall shelf' };
@@ -1446,6 +1501,61 @@
   let detailReceiptToken = null;
   let detailBookingId = null;
 
+  // ---------------- JOB TIMELINE ----------------
+  function fmtGap(fromIso, toIso){
+    const from = new Date(fromIso + 'Z'), to = new Date(toIso + 'Z');
+    const mins = Math.round((to - from) / 60000);
+    if(mins < 60) return `${mins} min`;
+    const h = Math.floor(mins / 60), m = mins % 60;
+    return m ? `${h}h ${m}m` : `${h}h`;
+  }
+
+  function fmtClock(iso){
+    return new Date(iso + 'Z').toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+
+  function renderJobTimeline(b){
+    const wrap = document.getElementById('detailTimelineWrap');
+    const steps = [
+      { key: 'claimed_at', label: 'Claimed' },
+      { key: 'departed_at', label: 'Departed', gapLabel: 'time to depart' },
+      { key: 'started_at', label: 'Started work', gapLabel: 'drive time' },
+      { key: 'completed_at', label: 'Completed', gapLabel: 'on the job' },
+    ];
+
+    if(!steps.some(s => b[s.key])){
+      wrap.style.display = 'none';
+      return;
+    }
+    wrap.style.display = 'block';
+
+    let prevIso = null;
+    const rows = steps.map((s, i) => {
+      const iso = b[s.key];
+      const isLast = i === steps.length - 1;
+      const gap = (iso && prevIso) ? fmtGap(prevIso, iso) : null;
+      if(iso) prevIso = iso;
+
+      const row = `
+        <div class="tl-row">
+          <div class="tl-dot-col">
+            <div class="tl-dot ${iso ? '' : 'pending'}"></div>
+            ${!isLast ? '<div class="tl-line"></div>' : ''}
+          </div>
+          <div class="tl-body" style="display:flex; align-items:flex-start;">
+            <div>
+              <div class="tl-label">${s.label}</div>
+              <div class="tl-time">${iso ? fmtClock(iso) : '<span class="tl-pending">Not yet</span>'}</div>
+            </div>
+            ${gap ? `<div class="tl-gap">${gap}<br><span style="font-weight:400;">${s.gapLabel}</span></div>` : ''}
+          </div>
+        </div>`;
+      return row;
+    });
+
+    document.getElementById('detailTimeline').innerHTML = rows.join('');
+  }
+
   function openJobDetail(id){
     const b = allBookings.find(x => x.id === id);
     if(!b) return;
@@ -1453,6 +1563,7 @@
     detailBookingId = id;
 
     document.getElementById('detailPrice').textContent = '$' + (b.actual_total ?? b.total_price ?? 0);
+    renderJobTimeline(b);
 
     const addrEl = document.getElementById('detailAddress');
     addrEl.textContent = (b.address || 'No address on file') + '  →';
@@ -1704,16 +1815,20 @@
     chatSocket.onerror = (err) => console.error('Chat socket error:', err);
 
     // The Durable Object can go idle and drop the connection, or the
-    // network can blip — reconnect automatically instead of leaving the
-    // thread silently stale until the admin reopens it.
+    // network can blip — reconnect automatically, but with real backoff and
+    // a hard cap. A previous version of this retried every few seconds
+    // forever, which is exactly the kind of bug that quietly burns through
+    // a request quota if the connection can't recover.
+    const MAX_RECONNECT_ATTEMPTS = 8;
     chatSocket.onclose = () => {
       if(!chatSocketWantConnected) return; // we closed it on purpose (navigated away)
       chatReconnectAttempt++;
-      const delayMs = Math.min(chatReconnectAttempt, 10) * 1000;
-      chatReconnectTimer = setTimeout(() => {
-        connectChatSocket(masterId);
-        if(currentThreadMasterId === masterId) openMasterThread(masterId, document.getElementById('messagesThreadName').textContent);
-      }, delayMs);
+      if(chatReconnectAttempt > MAX_RECONNECT_ATTEMPTS){
+        console.error('Chat socket: giving up after repeated failed reconnects.');
+        return;
+      }
+      const delayMs = Math.min(2 ** chatReconnectAttempt, 120) * 1000; // 2,4,8...capped at 120s
+      chatReconnectTimer = setTimeout(() => connectChatSocket(masterId), delayMs);
     };
   }
 
