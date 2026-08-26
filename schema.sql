@@ -66,6 +66,11 @@ CREATE TABLE IF NOT EXISTS bookings (
   -- only, not for tax filing) — computed once in depart.js, never updated.
   distance_miles REAL,
 
+  -- When the master hit "Start job" after arriving — completed_at minus
+  -- this gives the actual hands-on-tools duration of the job. Set by
+  -- start.js, read nowhere else in the booking flow (status stays as-is).
+  started_at TEXT,
+
   -- Whether the client opted in to receive SMS updates. Booking always
   -- succeeds regardless of this value — consent must never gate the
   -- transaction (Twilio toll-free verification requirement).
