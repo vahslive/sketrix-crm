@@ -653,10 +653,24 @@
         <div class="panel an-card">
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <h3>Average time per job</h3>
-            <button class="row-actions-btn" onclick="openTimeBreakdownModal()">View by job →</button>
+            <button class="row-actions-btn" onclick="switchView('time-breakdown')">View by job →</button>
           </div>
           <div class="an-chart-wrap an-chart-wrap-small"><canvas id="chartTimeBreakdown"></canvas></div>
         </div>
+      </div>
+    </div>
+
+    <!-- TIME BREAKDOWN VIEW -->
+    <div class="view" id="view-time-breakdown">
+      <div class="page-head">
+        <div>
+          <h1>Time breakdown by job</h1>
+          <div class="sub">What was done, and how long the drive and the work took, for every completed job.</div>
+        </div>
+        <button class="btn-outline" onclick="switchView('analytics')">← Back to analytics</button>
+      </div>
+      <div class="panel">
+        <div id="timeBreakdownList"></div>
       </div>
     </div>
 
@@ -924,17 +938,6 @@
 </div>
 
 <!-- INVITE MODAL -->
-<div class="modal-overlay" id="timeBreakdownModalOverlay">
-  <div class="modal" style="max-width:560px;">
-    <h2>Time breakdown by job</h2>
-    <div class="sub" style="margin-bottom:14px;">Every job with full timing data — what was done, and how long the drive and the work took. Tap a job to open it.</div>
-    <div id="timeBreakdownList"></div>
-    <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeTimeBreakdownModal()">Close</button>
-    </div>
-  </div>
-</div>
-
 <div class="modal-overlay" id="inviteModalOverlay">
   <div class="modal">
     <h2>Invite someone</h2>
@@ -1030,6 +1033,7 @@
     if(view !== 'messages') disconnectChatSocket();
     if(view === 'finance') renderFinance();
     if(view === 'analytics') renderAnalytics();
+    if(view === 'time-breakdown') renderTimeBreakdownPage();
     if(view === 'messages'){ showMessagesList(); loadMessagesInbox(); checkForNewMessages(); }
     if(view === 'calendar') renderCalendarMonth();
     if(view === 'settings') renderSettings();
@@ -1452,9 +1456,9 @@
     return parts.length ? parts.join(', ') : 'Standard mount';
   }
 
-  function openTimeBreakdownModal(){
+  function renderTimeBreakdownPage(){
     const jobs = allBookings
-      .filter(b => (b.departed_at && b.started_at) || (b.started_at && b.completed_at))
+      .filter(b => b.status === 'completed')
       .map(b => ({
         id: b.id,
         address: b.address,
@@ -1468,23 +1472,17 @@
 
     document.getElementById('timeBreakdownList').innerHTML = jobs.length
       ? jobs.map(j => `
-        <div class="member-row" style="cursor:pointer;" onclick="closeTimeBreakdownModal(); openJobDetail(${j.id});">
+        <div class="member-row" style="cursor:pointer;" onclick="openJobDetail(${j.id});">
           <div>
             <div class="member-name">${esc(j.address || 'Job #' + j.id)}</div>
             <div class="member-sub">${esc(j.summary)} · ${esc(j.master || 'Unassigned')}</div>
           </div>
           <div style="text-align:right; font-size:12.5px; flex:none; padding-left:12px;">
-            ${j.drive !== null ? `<div><span style="color:var(--warn); font-weight:700;">${j.drive}m</span> drive</div>` : ''}
-            ${j.work !== null ? `<div><span style="color:var(--level); font-weight:700;">${j.work}m</span> work</div>` : ''}
+            <div><span style="color:var(--warn); font-weight:700;">${j.drive !== null ? j.drive + 'm' : '—'}</span> drive</div>
+            <div><span style="color:var(--level); font-weight:700;">${j.work !== null ? j.work + 'm' : '—'}</span> work</div>
           </div>
         </div>`).join('')
-      : `<div class="member-sub">No jobs have full timing data yet — needs Departed, Started, and Completed timestamps.</div>`;
-
-    document.getElementById('timeBreakdownModalOverlay').classList.add('show');
-  }
-
-  function closeTimeBreakdownModal(){
-    document.getElementById('timeBreakdownModalOverlay').classList.remove('show');
+      : `<div class="member-sub">No completed jobs yet.</div>`;
   }
 
   const ADDON_LABELS = { addon_soundbar:'Soundbar', addon_fireplace:'Above fireplace', addon_shelf:'Wall shelf' };
