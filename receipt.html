@@ -24,7 +24,11 @@
   .total{ display:flex; justify-content:space-between; align-items:center; margin-top:20px; padding-top:20px; border-top:1.5px solid var(--ink); }
   .total .amt{ font-family:var(--display); font-size:28px; font-weight:800; }
   #err{ display:none; text-align:center; color:var(--ink-soft); }
-  .logo-mark{ width:32px; height:32px; border-radius:8px; margin-bottom:16px; }
+  .logo-mark{ display:inline-flex; align-items:center; text-decoration:none; margin-bottom:18px; }
+  .tv-frame{ border:1.5px solid var(--ink); border-radius:6px; padding:4px; }
+  .tv-screen{ background:var(--ink); border-radius:2px; padding:5px 9px; display:flex; gap:3px; }
+  .tv-screen span{ font-family:var(--display); font-weight:800; font-size:11px; }
+  .tv-screen .white{ color:#fff; } .tv-screen .blue{ color:var(--signal); }
   .footer{ margin-top:24px; padding-top:20px; border-top:1px solid var(--line); font-size:12px; color:var(--ink-soft); text-align:center; line-height:1.7; }
   .footer a{ color:var(--ink-soft); text-decoration:none; }
   .footer a:hover{ text-decoration:underline; }
@@ -49,12 +53,13 @@
 <body>
 
 <div class="card" id="card">
-  <svg class="logo-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-    <rect width="40" height="40" rx="10" fill="#0A0A0C"/>
-    <rect x="9" y="24" width="5" height="9" rx="2.5" fill="#2F5EFF" opacity="0.55"/>
-    <rect x="17.5" y="17" width="5" height="16" rx="2.5" fill="#2F5EFF" opacity="0.78"/>
-    <rect x="26" y="8" width="5" height="25" rx="2.5" fill="#2F5EFF"/>
-  </svg>
+  <a href="https://mountitright.com" class="logo-mark" target="_blank" rel="noopener">
+    <div class="tv-frame">
+      <div class="tv-screen">
+        <span class="white">Mount</span><span class="white">it</span><span class="blue">Right</span>
+      </div>
+    </div>
+  </a>
   <div class="badge">
     <svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M4 12l5 5L20 6" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </div>
@@ -77,8 +82,9 @@
   </div>
 
   <div class="footer">
-    Mount It Right · Phoenix, AZ & the Valley<br>
-    <a href="tel:+16237920747">(623) 792-0747</a> · <a href="mailto:info@mountitright.com">info@mountitright.com</a>
+    <strong style="color:var(--ink); font-size:13px;">Questions about your install?</strong><br>
+    <a href="tel:+16237920747">(623) 792-0747</a> · <a href="mailto:info@mountitright.com">info@mountitright.com</a><br>
+    Phoenix, AZ &amp; the Valley · <a href="https://mountitright.com" target="_blank" rel="noopener">mountitright.com</a>
   </div>
 </div>
 
