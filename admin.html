@@ -590,6 +590,13 @@
           </div>
           <button class="btn-outline" style="margin-top:8px;" onclick="addNotifyRecipient()">+ Add recipient</button>
         </div>
+
+        <div class="panel">
+          <h3>Payments</h3>
+          <div class="sub" style="margin-bottom:12px;">Mount It Right's own Stripe payout account — set this up once so the business's share of card payments has somewhere to go.</div>
+          <div id="stripeBusinessStatus" style="font-size:13px; margin-bottom:12px;">Checking status…</div>
+          <button class="btn-outline" onclick="startBusinessOnboarding()">Set up payouts</button>
+        </div>
       </div>
     </div>
 
@@ -2272,6 +2279,36 @@
     document.getElementById('setPwMsg').textContent = '';
     document.getElementById('setThemeToggle').checked = document.documentElement.getAttribute('data-theme') === 'dark';
     loadNotifyRecipients();
+    checkBusinessStripeStatus();
+  }
+
+  async function checkBusinessStripeStatus(){
+    const el = document.getElementById('stripeBusinessStatus');
+    try{
+      const res = await fetch('/api/stripe/account-status?business=' + encodeURIComponent('Mount It Right'), { headers: authHeaders() });
+      const data = await res.json();
+      if(!data.ok){ el.textContent = 'Could not check status.'; return; }
+      if(data.onboarded){
+        el.innerHTML = `<span style="color:var(--level); font-weight:600;">✓ Payouts are set up and active.</span>`;
+      } else if(data.hasAccount){
+        el.innerHTML = `<span style="color:var(--warn); font-weight:600;">Started, but not finished — click below to continue.</span>`;
+      } else {
+        el.innerHTML = `<span style="color:var(--ink-soft);">Not set up yet.</span>`;
+      }
+    } catch(err){
+      el.textContent = 'Could not check status.';
+    }
+  }
+
+  async function startBusinessOnboarding(){
+    try{
+      const res = await fetch('/api/stripe/onboard-business', { method:'POST', headers: authHeaders(true), body: JSON.stringify({ businessName: 'Mount It Right' }) });
+      const data = await res.json();
+      if(!data.ok){ alert(data.error || 'Could not start onboarding.'); return; }
+      window.open(data.url, '_blank');
+    } catch(err){
+      alert('Could not start onboarding: ' + err.message);
+    }
   }
 
   async function saveProfile(){
