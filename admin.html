@@ -863,7 +863,16 @@
     <div class="field-row"><label>Address</label><gmp-place-autocomplete id="f-address-auto" placeholder="Street address, city" style="width:100%; display:block;"></gmp-place-autocomplete></div>
     <div class="field-row two">
       <div><label>Date</label><input type="date" id="f-date"></div>
-      <div><label>Time</label><input type="text" id="f-time" placeholder="9:00 AM"></div>
+      <div><label>Time</label>
+        <select id="f-time">
+          <option value="">No specific time</option>
+          <option value="9:00 AM">9:00 AM</option>
+          <option value="11:00 AM">11:00 AM</option>
+          <option value="1:00 PM">1:00 PM</option>
+          <option value="3:00 PM">3:00 PM</option>
+          <option value="5:00 PM">5:00 PM</option>
+        </select>
+      </div>
     </div>
 
     <div id="f-tvList" style="margin-bottom:6px;"></div>
@@ -2110,6 +2119,8 @@
     addBookingAddress = null;
     const addrEl = document.getElementById('f-address-auto');
     if(addrEl) addrEl.value = '';
+    document.getElementById('f-date').value = '';
+    document.getElementById('f-time').value = '';
     resetAddTvFields();
     renderAddTvList();
     recalcAddTotal();
