@@ -860,7 +860,7 @@
       <div><label>Name</label><input type="text" id="f-name" placeholder="Full name"></div>
       <div><label>Phone</label><input type="tel" id="f-phone" placeholder="(602) 555-0110"></div>
     </div>
-    <div class="field-row"><label>Address</label><input type="text" id="f-address" placeholder="Street address, city"></div>
+    <div class="field-row"><label>Address</label><gmp-place-autocomplete id="f-address-auto" placeholder="Street address, city" style="width:100%; display:block;"></gmp-place-autocomplete></div>
     <div class="field-row two">
       <div><label>Date</label><input type="date" id="f-date"></div>
       <div><label>Time</label><input type="text" id="f-time" placeholder="9:00 AM"></div>
@@ -2107,6 +2107,9 @@
   function openAddModal(){
     document.getElementById('addModalOverlay').classList.add('show');
     addTvs = [];
+    addBookingAddress = null;
+    const addrEl = document.getElementById('f-address-auto');
+    if(addrEl) addrEl.value = '';
     resetAddTvFields();
     renderAddTvList();
     recalcAddTotal();
@@ -2215,7 +2218,9 @@
       source: document.getElementById('f-source').value,
       name: document.getElementById('f-name').value || null,
       phone: document.getElementById('f-phone').value || null,
-      address: document.getElementById('f-address').value || null,
+      address: addBookingAddress?.line || null,
+      lat: addBookingAddress?.lat ?? null,
+      lng: addBookingAddress?.lng ?? null,
       date: document.getElementById('f-date').value || null,
       time: document.getElementById('f-time').value || null,
       size: primary.size,
@@ -2407,7 +2412,30 @@
     closeInviteModal();
     loadTeam();
   }
+
+  // ---------------- ADDRESS AUTOCOMPLETE (Add booking modal) ----------------
+  // Same Places component and key as the client site — just needs
+  // sketrix.com added to the key's allowed referrers in Google Cloud Console.
+  let addBookingAddress = null; // { line, lat, lng }
+
+  function initAdminAutocomplete(){
+    const el = document.getElementById('f-address-auto');
+    if(!el || el.dataset.wired) return;
+    el.dataset.wired = '1';
+
+    el.addEventListener('gmp-select', async ({ placePrediction }) => {
+      const place = placePrediction.toPlace();
+      await place.fetchFields({ fields: ['formattedAddress', 'location'] });
+      if(!place.location){ addBookingAddress = null; return; }
+      addBookingAddress = {
+        line: place.formattedAddress,
+        lat: place.location.lat(),
+        lng: place.location.lng(),
+      };
+    });
+  }
 </script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAFuEDNTCkTwFAgASVteBOlMMx8RQQXj8A&libraries=places&callback=initAdminAutocomplete&loading=async" async defer></script>
 
 </body>
 </html>
