@@ -4,6 +4,8 @@
 import { getUserFromRequest } from '../../../_lib/auth.js';
 import { sendSms } from '../../../_lib/sms.js';
 
+const BUSINESS_NAME = 'Mount It Right';
+
 export async function onRequestPost({ request, env, params }) {
   const user = await getUserFromRequest(request, env);
   if (!user || user.role !== 'master') {
@@ -26,11 +28,39 @@ export async function onRequestPost({ request, env, params }) {
     return Response.json({ ok: false, error: 'Job not found or not yours' }, { status: 404 });
   }
 
-  const finalTotal = actualTotal != null ? actualTotal : booking.total_price;
-  // Default master commission is 65% — override per-deployment with the
-  // MASTER_COMMISSION_RATE environment variable (e.g. "0.4") if needed.
-  const rate = env.MASTER_COMMISSION_RATE ? parseFloat(env.MASTER_COMMISSION_RATE) : 0.30;
-  const earning = Math.round(finalTotal * rate);
+  const receiptUrl = `${env.SITE_URL || 'https://mountitright.com'}/receipt.html?t=${booking.receipt_token}`;
+
+  // Completing twice is a normal thing to happen — a flaky connection, a
+  // tapped button that looked like it did nothing. Don't rewrite the record
+  // and don't text the client a second receipt; just report success.
+  if (booking.status === 'completed') {
+    return Response.json({ ok: true, earning: booking.master_earning, receiptUrl, alreadyCompleted: true });
+  }
+
+  // A card payment has already been charged for a specific amount by the
+  // time we get here, and create-payment-intent.js wrote that amount to
+  // actual_total. The receipt must show what the client's card was actually
+  // charged, so that number wins over anything the app sends now.
+  const cardCharged = booking.stripe_payment_intent_id && booking.actual_total != null;
+  const finalTotal = cardCharged
+    ? booking.actual_total
+    : (actualTotal != null ? actualTotal : booking.total_price);
+
+  // The master's cut lives in one place: the businesses table. It used to be
+  // hardcoded here as 0.30 while the Stripe split used master_share_percent
+  // (40), so the payout recorded in the database never matched the money
+  // actually transferred. MASTER_COMMISSION_RATE still overrides, if set.
+  const business = await env.DB.prepare(`SELECT master_share_percent FROM businesses WHERE name = ?`)
+    .bind(BUSINESS_NAME).first();
+  const rate = env.MASTER_COMMISSION_RATE
+    ? parseFloat(env.MASTER_COMMISSION_RATE)
+    : (business?.master_share_percent != null ? business.master_share_percent / 100 : 0.40);
+
+  // If the payout split already ran, it recorded the exact cents Stripe sent
+  // the master. That is the truth — prefer it over recomputing from a rate.
+  const earning = booking.master_cents != null
+    ? Math.round(booking.master_cents / 100)
+    : Math.round(finalTotal * rate);
 
   await env.DB.prepare(
     `UPDATE bookings
@@ -39,11 +69,12 @@ export async function onRequestPost({ request, env, params }) {
      WHERE id = ?`
   ).bind(paymentMethod, finalTotal, earning, params.id).run();
 
-  const receiptUrl = `${env.SITE_URL || 'https://mountitright.com'}/receipt.html?t=${booking.receipt_token}`;
-
   if (booking.phone && booking.sms_consent) {
-    await sendSms(env, booking.phone,
-      `Mount It Right: your installation is complete! Total: $${finalTotal}. Receipt: ${receiptUrl}`
+    await sendSms(
+      env,
+      booking.phone,
+      `Mount It Right: your installation is complete! Total: $${finalTotal}. Receipt: ${receiptUrl}`,
+      { template: 'JOB_COMPLETE', params: { total: finalTotal, receipt: receiptUrl } }
     );
   }
 
