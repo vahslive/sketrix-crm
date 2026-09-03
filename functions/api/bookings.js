@@ -45,11 +45,19 @@ export async function onRequestPost({ request, env }) {
 
   const bookingId = result.meta.last_row_id;
 
+  // A template variable must always carry a value — an empty one is how a
+  // client ends up reading "confirmed for  ." So the date and time collapse
+  // into one phrase here, with a sane wording when neither was chosen.
+  const when = [date, time].filter(Boolean).join(' at ') || 'your requested time';
+
   // SMS confirmation to the client — only if they opted in. Consent is
   // never required to book; this just means we stay quiet if they didn't.
   if (phone && smsConsent) {
-    await sendSms(env, phone,
-      `Mount It Right: booking confirmed${date ? ' for ' + date : ''}${time ? ' at ' + time : ''}. Total: $${total}. We'll text you when your installer is on the way.`
+    await sendSms(
+      env,
+      phone,
+      `Mount It Right: booking confirmed for ${when}. Total: $${total}. We'll text you when your installer is on the way.`,
+      { template: 'BOOKING_CONFIRMED', params: { when, total } }
     );
   }
 
@@ -68,7 +76,14 @@ export async function onRequestPost({ request, env }) {
   ];
 
   const summary = `New ${source} booking #${bookingId} — $${total} — ${name || 'no name'} — ${address || 'no address'}`;
-  if (smsNumbers.length) await sendSmsToMany(env, smsNumbers, summary);
+  // Staff numbers need a template too. They're our own people, but as far as
+  // the carriers are concerned they're first-time recipients like anyone else.
+  if (smsNumbers.length) {
+    await sendSmsToMany(env, smsNumbers, summary, {
+      template: 'STAFF_ALERT',
+      params: { message: summary },
+    });
+  }
   if (emails.length) await sendEmail(env, emails, `New booking — $${total}`, summary);
 
   return Response.json({ ok: true, id: bookingId });
