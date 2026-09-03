@@ -35,9 +35,15 @@ export async function onRequestPost({ request, env }) {
   ).bind(token, name, email, phone, role, user.id, expiresAt).run();
 
   const link = `${env.SITE_URL || 'https://mountitright.com'}/accept-invite.html?token=${token}`;
-  const message = `${user.name} invited you to Mount It Right as ${role === 'admin' ? 'an admin' : 'a master'}. Set up your account: ${link}`;
+  const roleLabel = role === 'admin' ? 'an admin' : 'a master';
+  const message = `${user.name} invited you to Mount It Right as ${roleLabel}. Set up your account: ${link}`;
 
-  if (phone) await sendSms(env, phone, message);
+  if (phone) {
+    await sendSms(env, phone, message, {
+      template: 'TEAM_INVITE',
+      params: { inviter: user.name, role: roleLabel, link },
+    });
+  }
   if (email) await sendEmail(env, email, `You're invited to Mount It Right`, message);
 
   return Response.json({ ok: true, link });
