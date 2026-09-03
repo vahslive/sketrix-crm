@@ -40,8 +40,11 @@ export async function onRequestPost({ request, env, params }) {
   ).bind(eta.text, eta.miles, params.id).run();
 
   if (booking.phone && booking.sms_consent) {
-    await sendSms(env, booking.phone,
-      `Mount It Right: ${user.name} is on the way! Estimated arrival ${eta.text}.`
+    await sendSms(
+      env,
+      booking.phone,
+      `Mount It Right: ${user.name} is on the way! Estimated arrival ${eta.text}.`,
+      { template: 'ON_THE_WAY', params: { master: user.name, eta: eta.text } }
     );
   }
 
