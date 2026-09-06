@@ -599,6 +599,20 @@
         </div>
 
         <div class="panel">
+          <h3>Service prices</h3>
+          <div class="sub" style="margin-bottom:12px;">
+            One price list for the booking form, the app and this screen. Changes take effect
+            immediately for new bookings; jobs already taken keep the total that was agreed
+            with the customer.
+          </div>
+          <div id="pricesEditor" style="font-size:13px;">Loading…</div>
+          <div style="display:flex; gap:10px; margin-top:14px; align-items:center; flex-wrap:wrap;">
+            <button class="btn" onclick="savePrices()">Save prices</button>
+            <span id="pricesMsg" style="font-size:13px;"></span>
+          </div>
+        </div>
+
+        <div class="panel">
           <h3>Customer agreement</h3>
           <div class="sub" style="margin-bottom:12px;">
             What customers approve before work starts. Saving creates a <strong>new version</strong> —
@@ -618,7 +632,7 @@
 
           <div style="display:flex; gap:10px; margin-top:14px; align-items:center; flex-wrap:wrap;">
             <button class="btn" onclick="saveAgreement()">Save as new version</button>
-            <a class="btn-outline" href="/install-terms.html" target="_blank" rel="noopener" style="text-decoration:none;">Preview</a>
+            <button class="btn-outline" type="button" onclick="previewAgreement()">Preview</button>
             <span id="agrMsg" style="font-size:13px;"></span>
           </div>
 
@@ -2356,7 +2370,94 @@
       : `<div class="member-row"><div><div class="member-name">${esc(authUser.name)} (you)</div><div class="member-sub">${esc(authUser.email || authUser.phone)} · ${esc(authUser.role)}</div></div></div>`;
   }
 
+  // ---------------- SERVICE PRICES ----------------
+  const PRICE_GROUP_TITLES = {
+    size: 'TV size (base price, per TV)',
+    bracket: 'Bracket',
+    wall: 'Wall type',
+    wires: 'Cord concealment',
+    dismount: 'Remove an existing TV',
+    addons: 'Add-ons (charged once per booking)',
+  };
+
+  async function loadPricesEditor(){
+    const box = document.getElementById('pricesEditor');
+    try {
+      const res = await fetch('/api/prices');
+      const data = await res.json();
+      if(!data.ok){ box.textContent = 'Could not load prices.'; return; }
+
+      const order = ['size','bracket','wall','wires','dismount','addons'];
+      const groups = data.groups || {};
+      box.innerHTML = order.filter(g => groups[g]).map(g => `
+        <div style="margin-bottom:16px;">
+          <div style="font-weight:700; margin-bottom:6px;">${esc(PRICE_GROUP_TITLES[g] || g)}</div>
+          ${groups[g].map(o => `
+            <div style="display:flex; gap:10px; align-items:center; padding:5px 0;">
+              <input type="text" data-price-label="${esc(o.id)}" value="${esc(o.label)}"
+                     style="flex:1; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-family:inherit; font-size:13px; background:var(--bg); color:var(--ink);">
+              <span style="color:var(--ink-soft);">$</span>
+              <input type="number" min="0" step="1" data-price-code="${esc(o.id)}" value="${o.price}"
+                     style="width:90px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-family:inherit; font-size:13px; background:var(--bg); color:var(--ink);">
+            </div>`).join('')}
+        </div>`).join('') + `
+        <div style="margin-top:6px; padding-top:14px; border-top:1px solid var(--line); display:flex; gap:10px; align-items:center;">
+          <span style="flex:1;">Discount on every TV after the most expensive one</span>
+          <input type="number" min="0" max="50" step="1" id="tvDiscount" value="${data.additionalTvDiscountPercent}"
+                 style="width:90px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-family:inherit; font-size:13px; background:var(--bg); color:var(--ink);">
+          <span style="color:var(--ink-soft);">%</span>
+        </div>`;
+    } catch {
+      box.textContent = 'Could not load prices.';
+    }
+  }
+
+  async function savePrices(){
+    const msg = document.getElementById('pricesMsg');
+    const prices = [...document.querySelectorAll('[data-price-code]')].map(input => {
+      const code = input.dataset.priceCode;
+      const labelEl = document.querySelector(`[data-price-label="${code}"]`);
+      return { code, price: parseInt(input.value, 10), label: labelEl ? labelEl.value : undefined };
+    });
+
+    msg.style.color = 'var(--ink-soft)';
+    msg.textContent = 'Saving…';
+    try {
+      const res = await fetch('/api/prices', {
+        method: 'POST', headers: authHeaders(true),
+        body: JSON.stringify({
+          prices,
+          additionalTvDiscountPercent: parseFloat(document.getElementById('tvDiscount').value),
+        }),
+      });
+      const data = await res.json();
+      if(!data.ok){
+        msg.style.color = 'var(--danger)';
+        msg.textContent = data.error || 'Could not save.';
+        return;
+      }
+      msg.style.color = 'var(--level)';
+      msg.textContent = data.updated
+        ? `Saved — ${data.updated} option${data.updated === 1 ? '' : 's'} changed`
+        : 'Saved — nothing had changed';
+      // The add-booking form on this page caches the list it loaded, so refresh
+      // it now rather than leaving one screen quoting the old numbers.
+      PRICE_LIST = null;
+      loadPriceList();
+    } catch {
+      msg.style.color = 'var(--danger)';
+      msg.textContent = 'Could not save.';
+    }
+  }
+
   // ---------------- CUSTOMER AGREEMENT ----------------
+  // Opened with a timestamp so the browser can't hand back the copy it fetched
+  // before the edit. Without it the preview shows the previous wording and the
+  // obvious conclusion is that saving didn't work.
+  function previewAgreement(){
+    window.open('/install-terms.html?_=' + Date.now(), '_blank', 'noopener');
+  }
+
   async function loadAgreement(){
     const meta = document.getElementById('agreementMeta');
     try {
@@ -2452,6 +2553,7 @@
     document.getElementById('setThemeToggle').checked = document.documentElement.getAttribute('data-theme') === 'dark';
     loadNotifyRecipients();
     checkBusinessStripeStatus();
+    loadPricesEditor();
     loadAgreement();
   }
 
