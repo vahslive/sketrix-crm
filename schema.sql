@@ -1,5 +1,9 @@
--- Mount It Right — full schema (Phase 1: accounts, claim workflow, chat, receipts)
+-- Sketrix — full schema (accounts, claim workflow, chat, receipts, payouts)
 -- Run this against your D1 database. Safe to re-run (IF NOT EXISTS everywhere).
+--
+-- NOTE: this file only creates tables that don't exist yet. On a database
+-- that is already live, adding a column here does nothing — use the matching
+-- migrate-*.sql file for that.
 
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,8 +59,12 @@ CREATE TABLE IF NOT EXISTS bookings (
 
   completed_at TEXT,
   payment_method TEXT,    -- 'cash' | 'card' | 'other'
-  actual_total INTEGER,   -- final price if it changed on site (falls back to total_price)
-  master_earning INTEGER, -- computed payout for the master on this job
+
+  -- Final price. For a card payment this is written BEFORE the charge, by
+  -- create-payment-intent.js, and it is exactly what the card was charged —
+  -- the receipt, the database and Stripe can never show three numbers.
+  actual_total INTEGER,
+  master_earning INTEGER, -- payout for the master on this job, in dollars
 
   receipt_token TEXT,     -- random token used in the public receipt link
 
@@ -90,6 +98,16 @@ CREATE TABLE IF NOT EXISTS bookings (
   -- Stripe Tap to Pay tracking for this job's payment, if paid by card.
   stripe_payment_intent_id TEXT,
   stripe_split_done INTEGER NOT NULL DEFAULT 0,
+
+  -- What the split actually moved, in cents, recorded once split-payment.js
+  -- succeeds. Kept so payouts can be reconciled against Stripe later without
+  -- recomputing percentages that may since have changed. stripe_fee_cents is
+  -- Stripe's real processing fee for this charge — it comes out of Sketrix's
+  -- share, so platform_cents minus this is what the platform truly nets.
+  stripe_fee_cents INTEGER,
+  master_cents INTEGER,
+  business_cents INTEGER,
+  platform_cents INTEGER,
 
   FOREIGN KEY(claimed_by) REFERENCES users(id)
 );
@@ -143,6 +161,11 @@ CREATE INDEX IF NOT EXISTS idx_invites_token ON invites(token);
 -- One row per business on the Sketrix platform. Just Mount It Right today,
 -- but built so a second real business slots in without any migration —
 -- each gets its own Stripe Connect account and its own platform fee.
+--
+-- The three percentages are all taken off the gross amount charged and must
+-- add up to 100. Stripe's own processing fee is charged to the platform
+-- balance, so it comes out of platform_fee_percent — meaning that number is
+-- Sketrix's gross margin, not its net.
 CREATE TABLE IF NOT EXISTS businesses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,
