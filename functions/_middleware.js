@@ -23,7 +23,34 @@ export async function onRequest({ request, next }) {
     });
   }
 
-  const response = await next();
+  let response;
+  try {
+    response = await next();
+  } catch (err) {
+    // An endpoint threw and nobody caught it. Cloudflare's own answer to that
+    // is an HTML error page — which every caller here then tries to parse as
+    // JSON, producing the famously unhelpful:
+    //     Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+    // The real cause is buried underneath. So for anything under /api/ we
+    // answer in the shape callers expect, carrying the actual message.
+    const path = new URL(request.url).pathname;
+    console.error(`Unhandled error in ${path}:`, err);
+
+    if (path.startsWith('/api/')) {
+      return new Response(
+        JSON.stringify({ ok: false, error: err?.message || 'Server error' }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': allowOrigin,
+          },
+        }
+      );
+    }
+
+    throw err; // a page request — let Cloudflare show its normal error page
+  }
 
   // WebSocket upgrade responses carry a special `webSocket` property that
   // isn't part of body/status/headers — rebuilding the Response for CORS
