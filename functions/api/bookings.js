@@ -5,6 +5,7 @@ import { getUserFromRequest } from '../_lib/auth.js';
 import { sendSms, sendSmsToMany } from '../_lib/sms.js';
 import { sendEmail } from '../_lib/email.js';
 import { sendPushToUsers, activeStaffIds } from '../_lib/push.js';
+import { loadPrices, additionalTvDiscount, computeTotal } from '../_lib/pricing.js';
 
 function newReceiptToken() {
   return [...crypto.getRandomValues(new Uint8Array(16))]
@@ -30,6 +31,38 @@ export async function onRequestPost({ request, env }) {
     name = null, phone = null, notes = null, tvs = null, smsConsent = false,
   } = body;
 
+  // The price is worked out here, from the price list in the database — not
+  // taken from whatever number the page sent. The booking form runs the same
+  // rules client-side so the customer sees the figure before submitting, but a
+  // total that arrives over the wire is a total anyone can edit, and this is
+  // the only copy that reaches a card.
+  //
+  // Admin-entered bookings are the exception: a job taken over the phone can
+  // be priced by hand for reasons no price list knows about, and whoever typed
+  // it is signed in as an admin.
+  let finalTotal = Number(total) || 0;
+  if (Array.isArray(tvs) && tvs.length) {
+    try {
+      const { byCode } = await loadPrices(env);
+      const discount = await additionalTvDiscount(env);
+      const computed = computeTotal(tvs, addons, byCode, discount);
+
+      if (!admin || computed.total > 0) {
+        if (computed.total !== finalTotal) {
+          // Worth a line in the log either way: a mismatch means the page and
+          // the server disagree, which is either a stale cached page or
+          // somebody editing the request.
+          console.warn(`Booking total recomputed: page said ${finalTotal}, price list says ${computed.total}`);
+        }
+        finalTotal = computed.total;
+      }
+    } catch (err) {
+      // A pricing failure must not lose the booking. Fall back to the number
+      // sent, and shout about it in the log.
+      console.error('Could not price this booking from the price list:', err);
+    }
+  }
+
   const receiptToken = newReceiptToken();
 
   const result = await env.DB.prepare(
@@ -39,7 +72,7 @@ export async function onRequestPost({ request, env }) {
   ).bind(
     source, 'new', address, lat, lng, inServiceArea ? 1 : 0,
     dismount, size, bracket, wall, wires, JSON.stringify(addons || []),
-    total, date, time, name, phone, notes, receiptToken,
+    finalTotal, date, time, name, phone, notes, receiptToken,
     tvs && tvs.length ? JSON.stringify(tvs) : null,
     smsConsent ? 1 : 0
   ).run();
@@ -57,8 +90,8 @@ export async function onRequestPost({ request, env }) {
     await sendSms(
       env,
       phone,
-      `Mount It Right: booking confirmed for ${when}. Total: $${total}. We'll text you when your installer is on the way.`,
-      { template: 'BOOKING_CONFIRMED', params: { when, total } }
+      `Mount It Right: booking confirmed for ${when}. Total: $${finalTotal}. We'll text you when your installer is on the way.`,
+      { template: 'BOOKING_CONFIRMED', params: { when, total: finalTotal } }
     );
   }
 
@@ -79,7 +112,7 @@ export async function onRequestPost({ request, env }) {
   // Plain hyphens, not em dashes: an em dash is outside GSM-7, which pushes
   // the whole SMS into UCS-2 encoding — that drops the per-segment limit from
   // 160 characters to 70 and multiplies the cost of every staff alert.
-  const summary = `New ${source} booking #${bookingId} - $${total} - ${name || 'no name'} - ${address || 'no address'}`;
+  const summary = `New ${source} booking #${bookingId} - $${finalTotal} - ${name || 'no name'} - ${address || 'no address'}`;
   // Staff numbers need a template too. They're our own people, but as far as
   // the carriers are concerned they're first-time recipients like anyone else.
   if (smsNumbers.length) {
@@ -88,7 +121,7 @@ export async function onRequestPost({ request, env }) {
       params: { message: summary },
     });
   }
-  if (emails.length) await sendEmail(env, emails, `New booking — $${total}`, summary);
+  if (emails.length) await sendEmail(env, emails, `New booking — $${finalTotal}`, summary);
 
   // Push goes to every active master and admin, taken from the users table —
   // deliberately not the notify_recipients list the SMS above uses. That list
@@ -97,7 +130,7 @@ export async function onRequestPost({ request, env }) {
   // hear about it the moment they're given an account.
   try {
     await sendPushToUsers(env, await activeStaffIds(env), {
-      title: `New booking - $${total}`,
+      title: `New booking - $${finalTotal}`,
       body: [name, address].filter(Boolean).join(' - ') || `Booking #${bookingId}`,
       data: { type: 'new_booking', bookingId: Number(bookingId) },
     });
