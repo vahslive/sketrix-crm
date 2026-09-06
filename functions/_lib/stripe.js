@@ -28,8 +28,15 @@ function flattenParams(obj, prefix = '') {
 /**
  * Calls the Stripe API. `path` is relative, e.g. "accounts" or
  * `payment_intents/${id}`. Throws with a readable message on failure.
+ *
+ * `options.idempotencyKey` sends Stripe's Idempotency-Key header. Use it on
+ * anything that moves money: if the same key is replayed within 24h Stripe
+ * returns the ORIGINAL result instead of performing the action twice. That
+ * is what makes a retry after a half-failed payout split safe — without it,
+ * retrying a split that already sent the master's transfer would send it
+ * a second time.
  */
-export async function stripeRequest(env, method, path, params = {}) {
+export async function stripeRequest(env, method, path, params = {}, options = {}) {
   const pairs = flattenParams(params);
   const usp = new URLSearchParams(pairs);
   const isGet = method === 'GET';
@@ -39,6 +46,7 @@ export async function stripeRequest(env, method, path, params = {}) {
     headers: {
       'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`,
       ...(isGet ? {} : { 'Content-Type': 'application/x-www-form-urlencoded' }),
+      ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
     },
     body: isGet ? undefined : usp.toString(),
   });
