@@ -40,9 +40,11 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true, url: link.url });
   } catch (err) {
     console.error('Stripe master onboarding failed:', err);
+    // 400, not 5xx — Cloudflare swaps any 5xx for its own error page and the
+    // message below would be lost. See the same note in onboard-business.js.
     return Response.json(
       { ok: false, error: err?.message || 'Stripe rejected the onboarding request.' },
-      { status: 502 }
+      { status: 400 }
     );
   }
 }
