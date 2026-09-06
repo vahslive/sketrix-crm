@@ -1,6 +1,7 @@
 // GET  /api/messages?booking_id=X — list messages for a booking (auth required)
 // POST /api/messages { bookingId, body?, attachmentUrl?, attachmentType?, attachmentName? }
 import { getUserFromRequest } from '../_lib/auth.js';
+import { sendPushToUsers } from '../_lib/push.js';
 
 export async function onRequestGet({ request, env }) {
   const user = await getUserFromRequest(request, env);
@@ -44,8 +45,9 @@ export async function onRequestPost({ request, env }) {
   // now (admin's Messages inbox, or that master's own app). If this fails
   // for any reason, the message is still safely saved — realtime is a nice
   // extra, never a requirement for the message to exist.
+  let row = null;
   try {
-    const row = await env.DB.prepare(
+    row = await env.DB.prepare(
       `SELECT m.id, m.body, m.created_at, m.sender_id, u.name as sender_name, u.role as sender_role,
               m.attachment_url, m.attachment_type, m.attachment_name,
               b.id as booking_id, b.address as booking_address, b.status as booking_status,
@@ -66,6 +68,40 @@ export async function onRequestPost({ request, env }) {
     }
   } catch (err) {
     console.error('Realtime broadcast failed (message was still saved):', err);
+  }
+
+  // The WebSocket above only reaches someone with the app open. A push is for
+  // everyone else — the master driving between jobs, the office at dinner.
+  try {
+    const recipients = [];
+
+    // The master on this job, if it's been claimed and it isn't the sender.
+    if (row?.claimed_by && row.claimed_by !== user.id) recipients.push(row.claimed_by);
+
+    // Every admin, so the office sees a technician's question wherever they
+    // are. An admin writing to a master doesn't notify the other admins.
+    if (user.role === 'master') {
+      const { results: admins } = await env.DB.prepare(
+        `SELECT id FROM users WHERE role = 'admin' AND active = 1 AND id != ?`
+      ).bind(user.id).all();
+      recipients.push(...admins.map((a) => a.id));
+    }
+
+    if (recipients.length) {
+      const preview = text
+        ? text
+        : attachmentType === 'image'
+          ? 'Sent a photo'
+          : 'Sent a file';
+
+      await sendPushToUsers(env, recipients, {
+        title: user.name,
+        body: preview.length > 140 ? `${preview.slice(0, 137)}...` : preview,
+        data: { type: 'new_message', bookingId: Number(bookingId) },
+      });
+    }
+  } catch (err) {
+    console.error('Push notification failed (message was still saved):', err);
   }
 
   return Response.json({ ok: true });
