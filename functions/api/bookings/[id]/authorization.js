@@ -53,6 +53,10 @@ export async function onRequestGet({ request, env, params }) {
     signatureUrl: auth.signature_url,
     signedAt: auth.signed_at,
     signedVia: auth.signed_via,
+    // Which wording was actually on screen. Without it a stored signature only
+    // proves someone signed something — the admin links this straight to
+    // /install-terms.html?v=… so the exact text can be reread years later.
+    agreementVersion: auth.agreement_version,
   });
 }
 
