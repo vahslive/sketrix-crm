@@ -929,9 +929,9 @@
     <div class="field-row">
       <label>Add-ons (one-time, not per TV)</label>
       <div style="display:flex; gap:14px; font-size:13px; padding-top:4px; flex-wrap:wrap;">
-        <label style="display:flex; align-items:center; gap:6px; font-weight:500;"><input type="checkbox" id="f-addon-soundbar" style="width:auto;" onchange="recalcAddTotal()"> Soundbar (+$79)</label>
-        <label style="display:flex; align-items:center; gap:6px; font-weight:500;"><input type="checkbox" id="f-addon-fireplace" style="width:auto;" onchange="recalcAddTotal()"> Fireplace (+$59)</label>
-        <label style="display:flex; align-items:center; gap:6px; font-weight:500;"><input type="checkbox" id="f-addon-shelf" style="width:auto;" onchange="recalcAddTotal()"> Shelf (+$49)</label>
+        <label style="display:flex; align-items:center; gap:6px; font-weight:500;"><input type="checkbox" id="f-addon-soundbar" style="width:auto;" onchange="recalcAddTotal()"> <span id="lbl-addon-soundbar">Soundbar</span></label>
+        <label style="display:flex; align-items:center; gap:6px; font-weight:500;"><input type="checkbox" id="f-addon-fireplace" style="width:auto;" onchange="recalcAddTotal()"> <span id="lbl-addon-fireplace">Fireplace</span></label>
+        <label style="display:flex; align-items:center; gap:6px; font-weight:500;"><input type="checkbox" id="f-addon-shelf" style="width:auto;" onchange="recalcAddTotal()"> <span id="lbl-addon-shelf">Shelf</span></label>
       </div>
     </div>
 
@@ -2115,6 +2115,7 @@
 
   function openAddModal(){
     document.getElementById('addModalOverlay').classList.add('show');
+    loadPriceList();
     addTvs = [];
     addBookingAddress = null;
     const addrEl = document.getElementById('f-address-auto');
@@ -2188,17 +2189,67 @@
     recalcAddTotal();
   }
 
+  // The price list comes from the server, the same one the website and the
+  // app read. It used to be typed into the markup here as well, which is how
+  // the admin quietly kept quoting last season's prices after they were raised
+  // everywhere else.
+  let PRICE_LIST = null;
+  const PRICE_SELECTS = { size:'f-size', dismount:'f-dismount', bracket:'f-bracket', wall:'f-wall', wires:'f-wires' };
+
+  async function loadPriceList(){
+    try {
+      const res = await fetch('/api/prices');
+      const data = await res.json();
+      if(!data.ok) return;
+      PRICE_LIST = data;
+    } catch { return; }
+
+    // Rewrite the dropdowns in place. addTvPrice() already reads data-price
+    // off the selected option, so refreshing these values is enough to make
+    // every calculation on this screen follow the server.
+    Object.entries(PRICE_SELECTS).forEach(([group, selectId]) => {
+      const el = document.getElementById(selectId);
+      const options = (PRICE_LIST.groups || {})[group] || [];
+      if(!el || !options.length) return;
+      options.forEach(opt => {
+        const node = [...el.options].find(o => o.value === opt.id);
+        if(!node) return;
+        node.dataset.price = opt.price;
+        node.textContent = opt.price
+          ? `${opt.label} — ${group === 'size' ? '' : '+'}$${opt.price}`
+          : opt.label;
+      });
+    });
+
+    ((PRICE_LIST.groups || {}).addons || []).forEach(opt => {
+      const label = document.getElementById('lbl-' + opt.id.replace('addon_', 'addon-'));
+      if(label) label.textContent = `${opt.label} (+$${opt.price})`;
+    });
+
+    const btn = document.querySelector('button[onclick="addAnotherTv()"]');
+    if(btn) btn.textContent = `+ Add another TV (${PRICE_LIST.additionalTvDiscountPercent}% off the cheaper one)`;
+
+    recalcAddTotal();
+  }
+
+  function addonPrice(code){
+    const list = ((PRICE_LIST || {}).groups || {}).addons || [];
+    const found = list.find(o => o.id === code);
+    return found ? found.price : 0;
+  }
+
   function recalcAddTotal(){
     const allTvs = [...addTvs];
     const inProgress = currentAddTvConfig();
     if(inProgress.size) allTvs.push(inProgress);
 
+    const discount = PRICE_LIST ? PRICE_LIST.additionalTvDiscountPercent : 15;
     const prices = allTvs.map(addTvPrice).sort((a, b) => b - a);
-    let total = prices.reduce((sum, p, i) => sum + (i === 0 ? p : p * 0.85), 0);
+    let total = prices.reduce((sum, p, i) => sum + (i === 0 ? p : p * (1 - discount / 100)), 0);
 
-    if(document.getElementById('f-addon-soundbar').checked) total += 79;
-    if(document.getElementById('f-addon-fireplace').checked) total += 59;
-    if(document.getElementById('f-addon-shelf').checked) total += 49;
+    if(document.getElementById('f-addon-soundbar').checked) total += addonPrice('addon_soundbar');
+    if(document.getElementById('f-addon-fireplace').checked) total += addonPrice('addon_fireplace');
+    if(document.getElementById('f-addon-shelf').checked) total += addonPrice('addon_shelf');
 
     document.getElementById('f-total').value = Math.round(total);
   }
