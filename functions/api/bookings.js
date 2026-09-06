@@ -75,7 +75,10 @@ export async function onRequestPost({ request, env }) {
     ...recipients.filter(r => r.type === 'email').map(r => r.value),
   ];
 
-  const summary = `New ${source} booking #${bookingId} — $${total} — ${name || 'no name'} — ${address || 'no address'}`;
+  // Plain hyphens, not em dashes: an em dash is outside GSM-7, which pushes
+  // the whole SMS into UCS-2 encoding — that drops the per-segment limit from
+  // 160 characters to 70 and multiplies the cost of every staff alert.
+  const summary = `New ${source} booking #${bookingId} - $${total} - ${name || 'no name'} - ${address || 'no address'}`;
   // Staff numbers need a template too. They're our own people, but as far as
   // the carriers are concerned they're first-time recipients like anyone else.
   if (smsNumbers.length) {
