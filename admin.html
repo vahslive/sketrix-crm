@@ -597,6 +597,33 @@
           <div id="stripeBusinessStatus" style="font-size:13px; margin-bottom:12px;">Checking status…</div>
           <button class="btn-outline" onclick="startBusinessOnboarding()">Set up payouts</button>
         </div>
+
+        <div class="panel">
+          <h3>Customer agreement</h3>
+          <div class="sub" style="margin-bottom:12px;">
+            What customers approve before work starts. Saving creates a <strong>new version</strong> —
+            signatures already collected stay attached to the exact wording they were shown, which is
+            the only thing that makes them worth anything later.
+          </div>
+          <div id="agreementMeta" style="font-size:13px; color:var(--ink-soft); margin-bottom:14px;">Loading…</div>
+
+          <label style="font-size:12px; color:var(--ink-soft);">Short summary, shown above the tick boxes</label>
+          <textarea id="agrSummary" rows="3" style="width:100%; margin-top:6px; padding:10px 12px; border:1.5px solid var(--line); border-radius:10px; font-family:inherit; font-size:13px; background:var(--bg); color:var(--ink); resize:vertical;"></textarea>
+
+          <label style="font-size:12px; color:var(--ink-soft); display:block; margin-top:14px;">Points the customer ticks — one per line</label>
+          <textarea id="agrAcks" rows="7" style="width:100%; margin-top:6px; padding:10px 12px; border:1.5px solid var(--line); border-radius:10px; font-family:inherit; font-size:13px; background:var(--bg); color:var(--ink); resize:vertical;"></textarea>
+
+          <label style="font-size:12px; color:var(--ink-soft); display:block; margin-top:14px;">Full terms — a line starting with <code>##</code> is a heading, a blank line separates paragraphs</label>
+          <textarea id="agrFull" rows="16" style="width:100%; margin-top:6px; padding:10px 12px; border:1.5px solid var(--line); border-radius:10px; font-family:inherit; font-size:12.5px; line-height:1.6; background:var(--bg); color:var(--ink); resize:vertical;"></textarea>
+
+          <div style="display:flex; gap:10px; margin-top:14px; align-items:center; flex-wrap:wrap;">
+            <button class="btn" onclick="saveAgreement()">Save as new version</button>
+            <a class="btn-outline" href="/install-terms.html" target="_blank" rel="noopener" style="text-decoration:none;">Preview</a>
+            <span id="agrMsg" style="font-size:13px;"></span>
+          </div>
+
+          <div id="agreementVersions" style="margin-top:20px;"></div>
+        </div>
       </div>
     </div>
 
@@ -2329,6 +2356,69 @@
       : `<div class="member-row"><div><div class="member-name">${esc(authUser.name)} (you)</div><div class="member-sub">${esc(authUser.email || authUser.phone)} · ${esc(authUser.role)}</div></div></div>`;
   }
 
+  // ---------------- CUSTOMER AGREEMENT ----------------
+  async function loadAgreement(){
+    const meta = document.getElementById('agreementMeta');
+    try {
+      const res = await fetch('/api/agreement', { headers: authHeaders() });
+      const data = await res.json();
+      if(!data.ok){ meta.textContent = 'Could not load the agreement.'; return; }
+
+      document.getElementById('agrSummary').value = data.current.summary || '';
+      document.getElementById('agrAcks').value =
+        (data.current.acknowledgements || []).map(a => a.text).join('\n');
+      document.getElementById('agrFull').value = data.current.fullText || '';
+      meta.textContent = `Live version: ${data.current.version}`;
+
+      const versions = data.versions || [];
+      document.getElementById('agreementVersions').innerHTML = versions.length
+        ? `<h3 style="font-size:14px; margin-bottom:8px;">Version history</h3>` + versions.map(v => `
+            <div class="member-row">
+              <div>
+                <div class="member-name">${esc(v.version)}${v.active ? ' · live' : ''}</div>
+                <div class="member-sub">${esc((v.created_at || '').slice(0,16))} · ${v.signatures} signature${v.signatures === 1 ? '' : 's'}</div>
+              </div>
+              <a class="row-actions-btn" href="/install-terms.html?v=${encodeURIComponent(v.version)}" target="_blank" rel="noopener" style="text-decoration:none;">View</a>
+            </div>`).join('')
+        : '';
+    } catch {
+      meta.textContent = 'Could not load the agreement.';
+    }
+  }
+
+  async function saveAgreement(){
+    const msg = document.getElementById('agrMsg');
+    const acks = document.getElementById('agrAcks').value
+      .split('\n').map(l => l.trim()).filter(Boolean);
+
+    if(!confirm(`Save as a new version?\n\nCustomers will see the new wording from now on. The ${acks.length} point${acks.length === 1 ? '' : 's'} above become the tick boxes. Past signatures are not affected.`)) return;
+
+    msg.style.color = 'var(--ink-soft)';
+    msg.textContent = 'Saving…';
+    try {
+      const res = await fetch('/api/agreement', {
+        method: 'POST', headers: authHeaders(true),
+        body: JSON.stringify({
+          summary: document.getElementById('agrSummary').value,
+          acknowledgements: acks,
+          fullText: document.getElementById('agrFull').value,
+        }),
+      });
+      const data = await res.json();
+      if(!data.ok){
+        msg.style.color = 'var(--danger)';
+        msg.textContent = data.error || 'Could not save.';
+        return;
+      }
+      msg.style.color = 'var(--level)';
+      msg.textContent = `Saved as ${data.version}`;
+      loadAgreement();
+    } catch {
+      msg.style.color = 'var(--danger)';
+      msg.textContent = 'Could not save.';
+    }
+  }
+
   async function deleteInvite(id){
     if(!confirm('Cancel this invite?')) return;
     await fetch(`/api/invites/${id}`, { method:'DELETE', headers: authHeaders() });
@@ -2362,6 +2452,7 @@
     document.getElementById('setThemeToggle').checked = document.documentElement.getAttribute('data-theme') === 'dark';
     loadNotifyRecipients();
     checkBusinessStripeStatus();
+    loadAgreement();
   }
 
   async function checkBusinessStripeStatus(){
