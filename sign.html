@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%230A0A0C'/%3E%3Crect x='9' y='24' width='5' height='9' rx='2.5' fill='%232F5EFF' opacity='0.55'/%3E%3Crect x='17.5' y='17' width='5' height='16' rx='2.5' fill='%232F5EFF' opacity='0.78'/%3E%3Crect x='26' y='8' width='5' height='25' rx='2.5' fill='%232F5EFF'/%3E%3C/svg%3E">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Approve your installation — Mount It Right</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FFFFFF; --mist:#F5F5F6; --ink:#0A0A0C; --ink-soft:#6B6B70;
+    --line: rgba(10,10,12,0.09); --signal:#2F5EFF; --level:#2FB37C; --danger:#A32D2D;
+    --display:'Inter Tight',sans-serif; --body:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ background:var(--mist); color:var(--ink); font-family:var(--body); padding:24px; }
+  .card{ max-width:480px; margin:32px auto; background:var(--paper); border-radius:20px; padding:28px; border:1px solid var(--line); }
+  h1{ font-family:var(--display); font-size:21px; margin-bottom:6px; }
+  .sub{ color:var(--ink-soft); font-size:13.5px; line-height:1.6; margin-bottom:22px; }
+
+  .job{ background:var(--mist); border-radius:14px; padding:14px 16px; margin-bottom:22px; }
+  .row{ display:flex; justify-content:space-between; gap:16px; padding:6px 0; font-size:13.5px; }
+  .row .label{ color:var(--ink-soft); flex-shrink:0; }
+  .row .val{ text-align:right; font-weight:500; }
+  .row.total{ border-top:1px solid var(--line); margin-top:6px; padding-top:10px; }
+  .row.total .val{ font-family:var(--display); font-weight:800; font-size:19px; }
+
+  .section-title{ font-weight:700; font-size:14px; margin:22px 0 10px; }
+
+  .choice{ display:flex; gap:10px; margin-bottom:18px; }
+  .choice button{ flex:1; padding:12px 8px; border:1.5px solid var(--line); background:var(--paper);
+    border-radius:12px; font-family:inherit; font-size:13.5px; font-weight:600; color:var(--ink-soft); cursor:pointer; }
+  .choice button.on{ border-color:var(--signal); color:var(--signal); background:rgba(47,94,255,0.05); }
+
+  label.ack{ display:flex; gap:11px; align-items:flex-start; padding:11px 0; border-bottom:1px solid var(--line);
+    font-size:13px; line-height:1.6; cursor:pointer; }
+  label.ack:last-of-type{ border-bottom:none; }
+  label.ack input{ margin-top:2px; width:19px; height:19px; flex-shrink:0; accent-color:var(--signal); }
+
+  .terms-link{ display:inline-block; margin:6px 0 4px; font-size:13px; color:var(--signal); text-decoration:none; font-weight:600; }
+  .terms-link:hover{ text-decoration:underline; }
+
+  input[type=text]{ width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:12px;
+    font-family:inherit; font-size:15px; color:var(--ink); background:var(--paper); }
+  input[type=text]:focus{ outline:none; border-color:var(--signal); }
+
+  .pad-wrap{ position:relative; margin-top:8px; }
+  canvas{ width:100%; height:170px; border:1.5px dashed var(--line); border-radius:12px;
+    background:var(--paper); touch-action:none; display:block; }
+  .pad-hint{ position:absolute; left:0; right:0; top:50%; transform:translateY(-50%); text-align:center;
+    color:var(--ink-soft); font-size:13px; pointer-events:none; }
+  .pad-actions{ display:flex; justify-content:flex-end; margin-top:6px; }
+  .clear-btn{ background:none; border:none; color:var(--ink-soft); font-family:inherit; font-size:12.5px;
+    cursor:pointer; text-decoration:underline; padding:4px; }
+
+  .submit{ width:100%; margin-top:20px; padding:16px; background:var(--ink); color:var(--paper); border:none;
+    border-radius:100px; font-family:inherit; font-weight:700; font-size:15px; cursor:pointer; }
+  .submit:disabled{ opacity:.4; cursor:default; }
+
+  .msg{ margin-top:14px; font-size:13px; text-align:center; line-height:1.6; }
+  .msg.err{ color:var(--danger); }
+
+  .done{ text-align:center; padding:12px 0; }
+  .done .tick{ width:56px; height:56px; border-radius:50%; background:var(--level); display:flex;
+    align-items:center; justify-content:center; margin:0 auto 18px; color:#fff; font-size:28px; }
+
+  .footer{ margin-top:22px; padding-top:18px; border-top:1px solid var(--line); font-size:12px;
+    color:var(--ink-soft); text-align:center; line-height:1.7; }
+  .hidden{ display:none; }
+</style>
+</head>
+<body>
+
+<div class="card" id="card">
+  <div id="loading" class="sub" style="text-align:center; margin:0;">Loading…</div>
+
+  <div id="form" class="hidden">
+    <h1>Approve your installation</h1>
+    <div class="sub" id="summary"></div>
+
+    <div class="job">
+      <div class="row"><span class="label">Address</span><span class="val" id="jAddress">—</span></div>
+      <div class="row"><span class="label">Date</span><span class="val" id="jDate">—</span></div>
+      <div class="row"><span class="label">Installer</span><span class="val" id="jInstaller">—</span></div>
+      <div class="row total"><span class="label">Agreed price</span><span class="val" id="jTotal">—</span></div>
+    </div>
+
+    <div class="section-title">This property is</div>
+    <div class="choice">
+      <button type="button" id="btnOwner" onclick="setProperty('owner')">I own it</button>
+      <button type="button" id="btnTenant" onclick="setProperty('tenant')">I rent it</button>
+    </div>
+
+    <div class="section-title">Please confirm</div>
+    <div id="acks"></div>
+    <a class="terms-link" id="termsLink" target="_blank" rel="noopener">Read the full terms →</a>
+
+    <div class="section-title">Your full name</div>
+    <input type="text" id="name" autocomplete="name" placeholder="First and last name">
+
+    <div class="section-title">Signature</div>
+    <div class="pad-wrap">
+      <canvas id="pad"></canvas>
+      <div class="pad-hint" id="padHint">Sign with your finger</div>
+    </div>
+    <div class="pad-actions"><button class="clear-btn" type="button" onclick="clearPad()">Clear</button></div>
+
+    <button class="submit" id="submit" onclick="submitSignature()">Approve and sign</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div id="done" class="hidden">
+    <div class="done">
+      <div class="tick">✓</div>
+      <h1>Thank you — you're all set</h1>
+      <div class="sub" id="doneSub" style="margin-bottom:0;">Your installer can begin. A receipt will be sent to you when the work is finished.</div>
+    </div>
+  </div>
+
+  <div id="err" class="hidden">
+    <h1>This link isn't valid</h1>
+    <div class="sub">It may have expired or been mistyped. Please ask your installer for a new one.</div>
+  </div>
+
+  <div class="footer">
+    Mount It Right · Phoenix &amp; Scottsdale, AZ<br>
+    <a href="mailto:info@mountitright.com" style="color:inherit;">info@mountitright.com</a>
+  </div>
+</div>
+
+<script>
+  const token = new URLSearchParams(location.search).get('t');
+  let propertyStatus = null;
+  let ackIds = [];
+  let hasDrawn = false;
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => (
+    { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]
+  ));
+
+  function show(which){
+    ['loading','form','done','err'].forEach(id => $(id).classList.toggle('hidden', id !== which));
+  }
+
+  async function load(){
+    if(!token){ show('err'); return; }
+    let data;
+    try {
+      const res = await fetch(`/api/sign/${encodeURIComponent(token)}`);
+      data = await res.json();
+    } catch { show('err'); return; }
+
+    if(!data.ok){ show('err'); return; }
+
+    if(data.signed){
+      $('doneSub').textContent = 'This job was already approved. Nothing else is needed from you.';
+      show('done');
+      return;
+    }
+
+    const j = data.job;
+    $('jAddress').textContent = j.address || '—';
+    $('jDate').textContent = [j.date, j.time].filter(Boolean).join(' · ') || '—';
+    $('jInstaller').textContent = j.installer || '—';
+    $('jTotal').textContent = j.total != null ? ('$' + j.total) : '—';
+    $('summary').textContent = data.agreement.summary;
+    $('termsLink').href = data.agreement.fullTextUrl;
+
+    ackIds = data.agreement.acknowledgements.map(a => a.id);
+    $('acks').innerHTML = data.agreement.acknowledgements.map(a => `
+      <label class="ack">
+        <input type="checkbox" id="ack-${esc(a.id)}" onchange="refresh()">
+        <span>${esc(a.text)}</span>
+      </label>`).join('');
+
+    show('form');
+    setupPad();
+    refresh();
+  }
+
+  function setProperty(v){
+    propertyStatus = v;
+    $('btnOwner').classList.toggle('on', v === 'owner');
+    $('btnTenant').classList.toggle('on', v === 'tenant');
+    refresh();
+  }
+
+  function refresh(){
+    const allAcked = ackIds.every(id => $('ack-' + id) && $('ack-' + id).checked);
+    const named = $('name').value.trim().length >= 2;
+    $('submit').disabled = !(allAcked && named && propertyStatus && hasDrawn);
+  }
+
+  // ---- signature pad ----
+  let ctx, drawing = false, last = null;
+
+  function setupPad(){
+    const canvas = $('pad');
+    // Back the canvas with the device's real pixel grid, otherwise the stroke
+    // looks soft and blocky on a phone and the saved PNG is worse still.
+    const ratio = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * ratio;
+    canvas.height = rect.height * ratio;
+    ctx = canvas.getContext('2d');
+    ctx.scale(ratio, ratio);
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#0A0A0C';
+
+    const pos = (e) => {
+      const r = canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+
+    canvas.addEventListener('pointerdown', (e) => {
+      canvas.setPointerCapture(e.pointerId);
+      drawing = true;
+      last = pos(e);
+      if(!hasDrawn){ hasDrawn = true; $('padHint').style.display = 'none'; refresh(); }
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if(!drawing) return;
+      const p = pos(e);
+      ctx.beginPath();
+      ctx.moveTo(last.x, last.y);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      last = p;
+    });
+    const stop = () => { drawing = false; };
+    canvas.addEventListener('pointerup', stop);
+    canvas.addEventListener('pointercancel', stop);
+    canvas.addEventListener('pointerleave', stop);
+  }
+
+  function clearPad(){
+    const canvas = $('pad');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hasDrawn = false;
+    $('padHint').style.display = '';
+    refresh();
+  }
+
+  async function submitSignature(){
+    const btn = $('submit');
+    btn.disabled = true;
+    $('msg').className = 'msg';
+    $('msg').textContent = 'Sending…';
+
+    const acknowledgements = {};
+    ackIds.forEach(id => { acknowledgements[id] = $('ack-' + id).checked; });
+
+    // Flatten onto white: a transparent PNG is unreadable in anything that
+    // shows it on a dark background, and this may end up in an email or a PDF.
+    const src = $('pad');
+    const flat = document.createElement('canvas');
+    flat.width = src.width; flat.height = src.height;
+    const fctx = flat.getContext('2d');
+    fctx.fillStyle = '#FFFFFF';
+    fctx.fillRect(0, 0, flat.width, flat.height);
+    fctx.drawImage(src, 0, 0);
+
+    try {
+      const res = await fetch(`/api/sign/${encodeURIComponent(token)}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: $('name').value.trim(),
+          propertyStatus,
+          acknowledgements,
+          signature: flat.toDataURL('image/png'),
+          onSite: false,
+        }),
+      });
+      const data = await res.json();
+      if(!data.ok){
+        $('msg').className = 'msg err';
+        $('msg').textContent = data.error || 'Something went wrong. Please try again.';
+        btn.disabled = false;
+        return;
+      }
+      show('done');
+    } catch {
+      $('msg').className = 'msg err';
+      $('msg').textContent = 'No connection. Please check your signal and try again.';
+      btn.disabled = false;
+    }
+  }
+
+  $('name').addEventListener('input', refresh);
+  load();
+</script>
+</body>
+</html>
