@@ -55,9 +55,13 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ ok: true, url: link.url });
   } catch (err) {
     console.error('Stripe business onboarding failed:', err);
+    // Deliberately 400 and not 5xx. Cloudflare replaces any 5xx an app returns
+    // with its own branded "Bad gateway" page, so the body below — the actual
+    // reason Stripe refused — never reaches the browser, and every different
+    // failure looks identical. A 4xx passes through untouched.
     return Response.json(
       { ok: false, error: err?.message || 'Stripe rejected the onboarding request.' },
-      { status: 502 }
+      { status: 400 }
     );
   }
 }
