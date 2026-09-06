@@ -4,6 +4,9 @@
 import { getUserFromRequest } from '../../_lib/auth.js';
 import { stripeRequest } from '../../_lib/stripe.js';
 
+// See the note in onboard-business.js — same missing fallback lived here.
+const DEFAULT_SITE_URL = 'https://sketrix.com';
+
 export async function onRequestPost({ request, env }) {
   const user = await getUserFromRequest(request, env);
   if (!user || user.role !== 'master') {
@@ -11,25 +14,35 @@ export async function onRequestPost({ request, env }) {
   }
 
   const row = await env.DB.prepare(`SELECT stripe_account_id FROM users WHERE id = ?`).bind(user.id).first();
-  let accountId = row?.stripe_account_id;
+  const siteUrl = env.SITE_URL || DEFAULT_SITE_URL;
 
-  if (!accountId) {
-    const account = await stripeRequest(env, 'POST', 'accounts', {
-      type: 'express',
-      email: user.email || undefined,
-      business_type: 'individual',
-      capabilities: { transfers: { requested: true } },
+  try {
+    let accountId = row?.stripe_account_id;
+
+    if (!accountId) {
+      const account = await stripeRequest(env, 'POST', 'accounts', {
+        type: 'express',
+        email: user.email || undefined,
+        business_type: 'individual',
+        capabilities: { transfers: { requested: true } },
+      });
+      accountId = account.id;
+      await env.DB.prepare(`UPDATE users SET stripe_account_id = ? WHERE id = ?`).bind(accountId, user.id).run();
+    }
+
+    const link = await stripeRequest(env, 'POST', 'account_links', {
+      account: accountId,
+      refresh_url: `${siteUrl}/stripe-onboarding-refresh.html`,
+      return_url: `${siteUrl}/stripe-onboarding-done.html`,
+      type: 'account_onboarding',
     });
-    accountId = account.id;
-    await env.DB.prepare(`UPDATE users SET stripe_account_id = ? WHERE id = ?`).bind(accountId, user.id).run();
+
+    return Response.json({ ok: true, url: link.url });
+  } catch (err) {
+    console.error('Stripe master onboarding failed:', err);
+    return Response.json(
+      { ok: false, error: err?.message || 'Stripe rejected the onboarding request.' },
+      { status: 502 }
+    );
   }
-
-  const link = await stripeRequest(env, 'POST', 'account_links', {
-    account: accountId,
-    refresh_url: `${env.SITE_URL}/stripe-onboarding-refresh.html`,
-    return_url: `${env.SITE_URL}/stripe-onboarding-done.html`,
-    type: 'account_onboarding',
-  });
-
-  return Response.json({ ok: true, url: link.url });
 }
