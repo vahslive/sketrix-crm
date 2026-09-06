@@ -75,12 +75,22 @@ async function importPrivateKey(pem) {
   );
 }
 
+/**
+ * Values pasted into a dashboard field pick up stray spaces and newlines more
+ * often than anyone expects. In a JWT claim or an `apns-topic` header that
+ * makes a different string, and Apple answers with an error that points at the
+ * value rather than at the invisible character on the end of it.
+ */
+function clean(value) {
+  return String(value || '').trim();
+}
+
 async function getApnsJwt(env) {
   const now = Date.now();
   if (cachedJwt && now - cachedJwtAt < JWT_TTL_MS) return cachedJwt;
 
-  const header = { alg: 'ES256', kid: env.APNS_KEY_ID };
-  const payload = { iss: env.APNS_TEAM_ID, iat: Math.floor(now / 1000) };
+  const header = { alg: 'ES256', kid: clean(env.APNS_KEY_ID) };
+  const payload = { iss: clean(env.APNS_TEAM_ID), iat: Math.floor(now / 1000) };
   const signingInput = `${base64UrlEncodeJson(header)}.${base64UrlEncodeJson(payload)}`;
 
   const key = await importPrivateKey(env.APNS_PRIVATE_KEY);
@@ -136,7 +146,8 @@ export async function sendPushToUsers(env, userIds, notification) {
     return { ok: false, error: String(err) };
   }
 
-  const host = HOSTS[env.APNS_ENV === 'production' ? 'production' : 'sandbox'];
+  const host = HOSTS[clean(env.APNS_ENV) === 'production' ? 'production' : 'sandbox'];
+  const topic = clean(env.APNS_BUNDLE_ID);
 
   const payload = JSON.stringify({
     aps: {
@@ -156,7 +167,7 @@ export async function sendPushToUsers(env, userIds, notification) {
         method: 'POST',
         headers: {
           authorization: `bearer ${jwt}`,
-          'apns-topic': env.APNS_BUNDLE_ID,
+          'apns-topic': topic,
           'apns-push-type': 'alert',
           'apns-priority': '10',
           'content-type': 'application/json',
@@ -170,7 +181,12 @@ export async function sendPushToUsers(env, userIds, notification) {
       }
 
       const text = await res.text();
-      console.error('APNs rejected a push', res.status, text);
+      // The topic and environment are echoed here on purpose. Apple's reasons
+      // name a mismatch without saying what it compared against, and hunting
+      // that down without the values in front of you is a long evening.
+      console.error(
+        `APNs rejected a push: status=${res.status} topic="${topic}" env=${host} body=${text}`
+      );
 
       // 410 means the app was deleted from that phone; BadDeviceToken means
       // the token doesn't belong to this environment or app. Either way the
