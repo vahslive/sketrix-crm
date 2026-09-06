@@ -2,6 +2,12 @@
 // they've actually arrived and begin working. This doesn't change status
 // (stays 'en_route') — it just timestamps the start of hands-on-tools time,
 // so completed_at - started_at gives a real duration for the job.
+//
+// It is also the gate for the signed work authorization. "Start job" is the
+// last moment before the first hole goes into someone's wall, so it is the
+// right place to insist the customer has approved it — and the server has to
+// be the one insisting. A check that lives only in the app is a check that
+// disappears the first time someone installs an older build.
 import { getUserFromRequest } from '../../../_lib/auth.js';
 
 export async function onRequestPost({ request, env, params }) {
@@ -16,6 +22,18 @@ export async function onRequestPost({ request, env, params }) {
 
   if (!booking) {
     return Response.json({ ok: false, error: 'Job not found or not yours' }, { status: 404 });
+  }
+
+  const auth = await env.DB.prepare(
+    `SELECT status FROM job_authorizations WHERE booking_id = ?`
+  ).bind(params.id).first();
+
+  if (!auth || auth.status !== 'signed') {
+    return Response.json({
+      ok: false,
+      needsAuthorization: true,
+      error: 'This job needs the customer\'s approval before work can start.',
+    }, { status: 400 });
   }
 
   await env.DB.prepare(
