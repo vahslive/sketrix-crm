@@ -256,6 +256,35 @@
   .member-name{ font-size:13.5px; font-weight:600; }
   .member-sub{ font-size:12px; color:var(--ink-soft); }
 
+  /* ---------- approvals ---------- */
+  .appr-head{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .appr-search{
+    background:var(--mist); border:1px solid var(--line); border-radius:10px;
+    padding:9px 12px; font-size:13px; color:var(--ink); font-family:inherit; min-width:250px;
+  }
+  .appr-search::placeholder{ color:var(--ink-soft); opacity:0.8; }
+  .appr-row{ display:flex; gap:14px; align-items:center; padding:13px 0; border-bottom:1px solid var(--line); }
+  .appr-row:last-child{ border-bottom:none; }
+  /* White background regardless of theme: the signature is black ink on white,
+     and it is the one thing on this page that must stay legible in both. */
+  .appr-sig{
+    width:92px; height:46px; flex:none; border:1px solid var(--line);
+    border-radius:8px; background:#fff; object-fit:contain; cursor:zoom-in;
+  }
+  .appr-sig-none{
+    width:92px; height:46px; flex:none; border:1px dashed var(--line); border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:10.5px; font-weight:600; color:var(--ink-soft);
+  }
+  .appr-main{ flex:1; min-width:0; }
+  .appr-name{ font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .appr-sub{ font-size:12px; color:var(--ink-soft); margin-top:3px; line-height:1.5; }
+  .appr-tag{ display:inline-block; padding:3px 8px; border-radius:100px; font-size:10.5px; font-weight:700; }
+  .appr-tag.owner{ background:var(--level-soft); color:var(--level); }
+  .appr-tag.tenant{ background:var(--warn-soft); color:var(--warn); }
+  .appr-tag.pending{ background:var(--danger-soft); color:var(--danger); }
+  .appr-counts{ font-size:12px; color:var(--ink-soft); }
+
   /* ---------- modal ---------- */
   .modal-overlay{
     display:none; position:fixed; inset:0; background:rgba(10,10,12,0.4);
@@ -469,6 +498,10 @@
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H8l-4 4V6a1 1 0 0 1 1-1z"/></svg>
       Messages
       <span id="messagesBadge" class="nav-badge" style="display:none;"></span>
+    </div>
+    <div class="nav-item" data-view="approvals" onclick="switchView('approvals')">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 16c2.5 0 2.5-8 5-8s2.5 6 5 6 2-3 4-3"/><path d="M3 21h18"/><path d="M15 4h6M18 1v6"/></svg>
+      Approvals
     </div>
     <div class="nav-item" data-view="team" onclick="switchView('team')">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6"/><circle cx="18" cy="8" r="2.5"/><path d="M16 14.5c2.7.4 5 2.4 5 5.5"/></svg>
@@ -777,6 +810,25 @@
       </div>
     </div>
 
+    <!-- APPROVALS VIEW -->
+    <div class="view" id="view-approvals">
+      <div class="page-head">
+        <div>
+          <h1>Approvals</h1>
+          <div class="sub">Every signed authorization, with the wording the customer agreed to.</div>
+        </div>
+        <div class="appr-head">
+          <span class="appr-counts" id="approvalCounts"></span>
+          <input class="appr-search" id="approvalSearch" type="search"
+                 placeholder="Address, name, phone or job #" oninput="renderApprovals()">
+        </div>
+      </div>
+
+      <div class="table-card" style="padding:4px 20px;">
+        <div id="approvalsList"><div class="empty">Loading…</div></div>
+      </div>
+    </div>
+
     <!-- JOB DETAIL VIEW (full page) -->
     <div class="view" id="view-detail">
       <div class="page-head">
@@ -801,6 +853,11 @@
           <div class="detail-section" id="detailTimelineWrap" style="display:none;">
             <div class="detail-label">Timeline</div>
             <div id="detailTimeline"></div>
+          </div>
+
+          <div class="detail-section" id="detailApprovalWrap" style="display:none;">
+            <div class="detail-label">Customer approval</div>
+            <div id="detailApproval"></div>
           </div>
 
           <div class="detail-section">
@@ -1093,6 +1150,7 @@
     if(view === 'time-breakdown') renderTimeBreakdownPage();
     if(view === 'messages'){ showMessagesList(); loadMessagesInbox(); checkForNewMessages(); }
     if(view === 'calendar') renderCalendarMonth();
+    if(view === 'approvals') loadApprovals();
     if(view === 'settings') renderSettings();
   }
 
@@ -1677,6 +1735,171 @@
     document.getElementById('detailTimeline').innerHTML = rows.join('');
   }
 
+  // ---------------- APPROVALS (signed authorizations) ----------------
+  //
+  // The whole history is fetched once and filtered in the browser. Searching a
+  // few hundred rows locally is instant and survives a flaky connection at a
+  // customer's door better than a request per keystroke would.
+  let allApprovals = [];
+  let approvalsTruncated = false;
+
+  async function loadApprovals(){
+    const list = document.getElementById('approvalsList');
+    try {
+      const res = await fetch('/api/authorizations', { headers: authHeaders() });
+      if(res.status === 401){ logout(); return; }
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Could not load approvals');
+      allApprovals = data.authorizations || [];
+      approvalsTruncated = data.truncated === true;
+
+      const c = data.counts || {};
+      document.getElementById('approvalCounts').textContent =
+        `${c.signed || 0} signed · ${c.tenants || 0} by tenants` +
+        ((c.pending || 0) ? ` · ${c.pending} awaiting signature` : '');
+
+      renderApprovals();
+    } catch (err) {
+      list.innerHTML = `<div class="empty">${esc(String(err.message || err))}</div>`;
+    }
+  }
+
+  function approvalMatches(a, q){
+    if(!q) return true;
+    return [
+      a.customer_name, a.booked_name, a.address, a.phone,
+      '#' + a.booking_id, String(a.booking_id),
+    ].some(v => (v || '').toString().toLowerCase().includes(q));
+  }
+
+  function renderApprovals(){
+    const q = (document.getElementById('approvalSearch').value || '').trim().toLowerCase();
+    const rows = allApprovals.filter(a => approvalMatches(a, q));
+    const list = document.getElementById('approvalsList');
+
+    if(!rows.length){
+      list.innerHTML = `<div class="empty">${
+        allApprovals.length
+          ? 'Nothing matches that search.'
+          : 'No approvals yet. They appear here the moment a customer signs.'
+      }</div>`;
+      return;
+    }
+
+    list.innerHTML = rows.map(approvalRow).join('') + (approvalsTruncated
+      ? '<div class="appr-sub" style="padding:12px 0;">Showing the most recent 1000. Older approvals are still in the database.</div>'
+      : '');
+  }
+
+  function approvalRow(a){
+    const signed = a.status === 'signed';
+
+    // A plain link rather than an onclick: the URL would otherwise be spliced
+    // into a JavaScript string inside an HTML attribute, which is two layers of
+    // quoting to get wrong for no benefit.
+    const thumb = signed && a.signature_url
+      ? `<a href="${esc(a.signature_url)}" target="_blank" rel="noopener" title="Open full size">
+           <img class="appr-sig" src="${esc(a.signature_url)}" alt="Signature">
+         </a>`
+      : `<div class="appr-sig-none">${signed ? 'No image' : 'Unsigned'}</div>`;
+
+    const tag = signed
+      ? `<span class="appr-tag ${a.property_status === 'tenant' ? 'tenant' : 'owner'}">${
+          a.property_status === 'tenant' ? 'Tenant' : 'Owner'
+        }</span>`
+      : '<span class="appr-tag pending">Awaiting signature</span>';
+
+    const when = signed && a.signed_at ? fmtClock(a.signed_at) : null;
+    const how = a.signed_via === 'remote' ? 'signed by link'
+              : a.signed_via === 'on_site' ? 'signed on site'
+              : null;
+
+    // The version matters as much as the signature: it is what turns "they
+    // agreed" into "they agreed to these words".
+    const sub = [
+      `#${a.booking_id}`,
+      esc(a.address || 'No address'),
+      when,
+      how,
+      a.agreement_version
+        ? `<a href="/install-terms.html?v=${encodeURIComponent(a.agreement_version)}" target="_blank"
+              rel="noopener" style="color:var(--signal);">terms ${esc(a.agreement_version)}</a>`
+        : null,
+      a.master_name ? esc(a.master_name) : null,
+    ].filter(Boolean).join(' · ');
+
+    return `
+      <div class="appr-row">
+        ${thumb}
+        <div class="appr-main">
+          <div class="appr-name">${esc(a.customer_name || a.booked_name || 'Unnamed')} ${tag}</div>
+          <div class="appr-sub">${sub}</div>
+        </div>
+        <button class="row-actions-btn" onclick="openJobDetail(${a.booking_id})">Open job</button>
+      </div>`;
+  }
+
+  /// The same record, shown inside the job it belongs to — which is where
+  /// anyone actually looks when a question about a specific address comes up.
+  async function loadApprovalForDetail(bookingId){
+    const wrap = document.getElementById('detailApprovalWrap');
+    const body = document.getElementById('detailApproval');
+    wrap.style.display = 'none';
+
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}/authorization`, { headers: authHeaders() });
+      if(!res.ok) return;
+      const a = await res.json();
+      if(!a.ok || !a.exists) return;
+
+      // A different job may have finished loading while this request was in
+      // flight; without this check its approval would land on the wrong page.
+      if(detailBookingId !== bookingId) return;
+
+      wrap.style.display = 'block';
+
+      if(!a.signed){
+        body.innerHTML = `
+          <div class="appr-sub">
+            <span class="appr-tag pending">Awaiting signature</span>
+            &nbsp;A link was created but nobody has signed it yet.
+          </div>
+          <div class="appr-sub" style="margin-top:8px; word-break:break-all;">
+            <a href="${esc(a.signUrl)}" target="_blank" rel="noopener" style="color:var(--signal);">${esc(a.signUrl)}</a>
+          </div>`;
+        return;
+      }
+
+      const tagClass = a.propertyStatus === 'tenant' ? 'tenant' : 'owner';
+      const tagText = a.propertyStatus === 'tenant' ? 'Tenant' : 'Owner';
+
+      body.innerHTML = `
+        <div style="display:flex; gap:14px; align-items:center;">
+          ${a.signatureUrl
+            ? `<a href="${esc(a.signatureUrl)}" target="_blank" rel="noopener" title="Open full size">
+                 <img class="appr-sig" src="${esc(a.signatureUrl)}" alt="Signature">
+               </a>`
+            : '<div class="appr-sig-none">No image</div>'}
+          <div class="appr-main">
+            <div class="appr-name">${esc(a.customerName || '')} <span class="appr-tag ${tagClass}">${tagText}</span></div>
+            <div class="appr-sub">
+              ${a.signedAt ? fmtClock(a.signedAt) : ''}
+              ${a.signedVia === 'remote' ? ' · signed by link' : a.signedVia === 'on_site' ? ' · signed on site' : ''}
+            </div>
+            ${a.agreementVersion ? `
+            <div class="appr-sub" style="margin-top:4px;">
+              <a href="/install-terms.html?v=${encodeURIComponent(a.agreementVersion)}" target="_blank"
+                 rel="noopener" style="color:var(--signal); font-weight:600;">
+                Read the terms they signed (${esc(a.agreementVersion)})
+              </a>
+            </div>` : ''}
+          </div>
+        </div>`;
+    } catch {
+      // An approval that fails to load is not worth breaking the job page over.
+    }
+  }
+
   function openJobDetail(id){
     const b = allBookings.find(x => x.id === id);
     if(!b) return;
@@ -1721,6 +1944,7 @@
 
     switchView('detail');
     loadMessages(id);
+    loadApprovalForDetail(id);
   }
 
   // ---------------- CHAT ----------------
