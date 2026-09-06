@@ -4,6 +4,7 @@
 import { getUserFromRequest } from '../_lib/auth.js';
 import { sendSms, sendSmsToMany } from '../_lib/sms.js';
 import { sendEmail } from '../_lib/email.js';
+import { sendPushToUsers, activeStaffIds } from '../_lib/push.js';
 
 function newReceiptToken() {
   return [...crypto.getRandomValues(new Uint8Array(16))]
@@ -88,6 +89,21 @@ export async function onRequestPost({ request, env }) {
     });
   }
   if (emails.length) await sendEmail(env, emails, `New booking — $${total}`, summary);
+
+  // Push goes to every active master and admin, taken from the users table —
+  // deliberately not the notify_recipients list the SMS above uses. That list
+  // is hand-maintained, so a newly hired master silently gets nothing until
+  // someone remembers to add their number. Anyone who can claim a job should
+  // hear about it the moment they're given an account.
+  try {
+    await sendPushToUsers(env, await activeStaffIds(env), {
+      title: `New booking - $${total}`,
+      body: [name, address].filter(Boolean).join(' - ') || `Booking #${bookingId}`,
+      data: { type: 'new_booking', bookingId: Number(bookingId) },
+    });
+  } catch (err) {
+    console.error('Push notification failed (booking was still saved):', err);
+  }
 
   return Response.json({ ok: true, id: bookingId });
 }
