@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%230A0A0C'/%3E%3Crect x='9' y='24' width='5' height='9' rx='2.5' fill='%232F5EFF' opacity='0.55'/%3E%3Crect x='17.5' y='17' width='5' height='16' rx='2.5' fill='%232F5EFF' opacity='0.78'/%3E%3Crect x='26' y='8' width='5' height='25' rx='2.5' fill='%232F5EFF'/%3E%3C/svg%3E">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Installation Terms — Mount It Right</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FFFFFF; --mist:#F5F5F6; --ink:#0A0A0C; --ink-soft:#6B6B70;
+    --line: rgba(10,10,12,0.09); --signal:#2F5EFF;
+    --display:'Inter Tight',sans-serif; --body:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ background:var(--mist); color:var(--ink); font-family:var(--body); padding:24px; line-height:1.7; }
+  .card{ max-width:660px; margin:32px auto; background:var(--paper); border-radius:20px; padding:36px 34px; border:1px solid var(--line); }
+  h1{ font-family:var(--display); font-size:26px; margin-bottom:6px; }
+  .ver{ color:var(--ink-soft); font-size:12.5px; margin-bottom:26px; }
+  h2{ font-family:var(--display); font-size:16px; margin:28px 0 8px; padding-bottom:6px; border-bottom:1px solid var(--line); }
+  p{ font-size:14.5px; margin-bottom:12px; }
+  .footer{ margin-top:32px; padding-top:20px; border-top:1px solid var(--line); font-size:12.5px; color:var(--ink-soft); text-align:center; }
+  .footer a{ color:inherit; }
+  .loading{ color:var(--ink-soft); font-size:14px; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>TV Installation Terms</h1>
+  <div class="ver" id="ver">Mount It Right LLC · Phoenix &amp; Scottsdale, AZ</div>
+  <div id="body"><p class="loading">Loading…</p></div>
+
+  <div class="footer">
+    Questions any time: <a href="mailto:info@mountitright.com">info@mountitright.com</a>
+  </div>
+</div>
+
+<script>
+  // The wording is served from the database so it can be revised in the admin
+  // without touching this file. A ?v= in the address pins a specific version,
+  // which is how a link stored beside an old signature keeps showing the text
+  // that was actually agreed rather than whatever has been published since.
+  const wanted = new URLSearchParams(location.search).get('v');
+
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => (
+    { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]
+  ));
+
+  // Deliberately not innerHTML of stored text. The terms are edited by an
+  // admin, but text that reaches a page unescaped is a habit that eventually
+  // meets input from somewhere else. Headings are marked with "## " and
+  // everything else is a paragraph.
+  function render(text){
+    return String(text || '')
+      .split(/\n\s*\n/)
+      .map(block => block.trim())
+      .filter(Boolean)
+      .map(block => block.startsWith('## ')
+        ? `<h2>${esc(block.slice(3).trim())}</h2>`
+        : `<p>${esc(block)}</p>`)
+      .join('');
+  }
+
+  (async () => {
+    try {
+      const url = '/api/agreement/public' + (wanted ? `?v=${encodeURIComponent(wanted)}` : '');
+      const res = await fetch(url);
+      const data = await res.json();
+      if(!data.ok) throw new Error();
+      document.getElementById('body').innerHTML = render(data.fullText);
+      document.getElementById('ver').textContent =
+        `Mount It Right LLC · Phoenix & Scottsdale, AZ · Version ${data.version}`;
+      document.title = `Installation Terms (${data.version}) — Mount It Right`;
+    } catch {
+      document.getElementById('body').innerHTML =
+        '<p>These terms are temporarily unavailable. Please ask your installer for a copy, or email info@mountitright.com.</p>';
+    }
+  })();
+</script>
+</body>
+</html>
