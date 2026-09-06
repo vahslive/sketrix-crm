@@ -36,11 +36,16 @@ export async function onRequest({ request, next }) {
     const path = new URL(request.url).pathname;
     console.error(`Unhandled error in ${path}:`, err);
 
+    // Answered as 400, not 500, on purpose. Cloudflare intercepts any 5xx an
+    // app returns and serves its own "Bad gateway" page instead — so a 500
+    // here would throw away the very message this handler exists to deliver,
+    // and every distinct failure would reach the browser looking the same.
+    // Being able to read the cause is worth more than the tidier status code.
     if (path.startsWith('/api/')) {
       return new Response(
         JSON.stringify({ ok: false, error: err?.message || 'Server error' }),
         {
-          status: 500,
+          status: 400,
           headers: {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': allowOrigin,
