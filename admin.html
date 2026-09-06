@@ -2264,15 +2264,16 @@
         </div>`).join('')
       : `<div class="member-sub">No pending invites.</div>`;
 
-    const usersRes = await fetch('/api/users', { headers: authHeaders() });
+    const usersRes = await fetch('/api/users?all=1', { headers: authHeaders() });
     const usersData = usersRes.ok ? await usersRes.json() : { users: [] };
     const members = usersData.users || [];
 
     const membersEl = document.getElementById('membersList');
     membersEl.innerHTML = members.length
       ? members.map(u => `
-        <div class="member-row">
-          <div><div class="member-name">${esc(u.name)}${u.id === authUser.id ? ' (you)' : ''}</div><div class="member-sub">${esc(u.email || u.phone) || '—'} · ${esc(u.role)}</div></div>
+        <div class="member-row"${u.active ? '' : ' style="opacity:.55;"'}>
+          <div><div class="member-name">${esc(u.name)}${u.id === authUser.id ? ' (you)' : ''}</div><div class="member-sub">${esc(u.email || u.phone) || '—'} · ${esc(u.role)}${u.active ? '' : ' · deactivated'}</div></div>
+          ${u.id === authUser.id ? '' : `<button class="row-actions-btn" onclick="setMemberActive(${u.id}, ${u.active ? 'false' : 'true'})">${u.active ? 'Deactivate' : 'Reactivate'}</button>`}
         </div>`).join('')
       : `<div class="member-row"><div><div class="member-name">${esc(authUser.name)} (you)</div><div class="member-sub">${esc(authUser.email || authUser.phone)} · ${esc(authUser.role)}</div></div></div>`;
   }
@@ -2280,6 +2281,20 @@
   async function deleteInvite(id){
     if(!confirm('Cancel this invite?')) return;
     await fetch(`/api/invites/${id}`, { method:'DELETE', headers: authHeaders() });
+    loadTeam();
+  }
+
+  // There is no "delete member" on purpose. Completed jobs point at the master
+  // who did them and every message at whoever wrote it - removing the row would
+  // leave jobs with no technician and payout totals that no longer add up.
+  // Deactivating takes away the access and keeps the history.
+  async function setMemberActive(id, active){
+    if(!active && !confirm('Deactivate this member?\n\nThey lose access immediately and stop receiving notifications. Their completed jobs and messages stay exactly as they are.')) return;
+    const res = await fetch(`/api/users/${id}`, {
+      method:'PATCH', headers: authHeaders(true), body: JSON.stringify({ active }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!data.ok){ alert(data.error || 'Could not update this member.'); return; }
     loadTeam();
   }
 
@@ -2419,9 +2434,19 @@
       alert('Name and at least email or phone are required.');
       return;
     }
-    await fetch('/api/invites', { method:'POST', headers: authHeaders(true), body: JSON.stringify(payload) });
+    const res = await fetch('/api/invites', { method:'POST', headers: authHeaders(true), body: JSON.stringify(payload) });
+    const data = res.ok ? await res.json() : {};
     closeInviteModal();
     loadTeam();
+
+    // Always surface the link, even when the SMS and email go out fine.
+    // Delivery fails quietly more often than anyone expects - a carrier holds
+    // the text until morning, a mailbox bounces it - and without the link on
+    // screen there is no way to finish inviting someone. Now it can be pasted
+    // into any chat.
+    if(data.ok && data.link){
+      prompt('Invite created. Copy this link and send it however you like:', data.link);
+    }
   }
 
   // ---------------- ADDRESS AUTOCOMPLETE (Add booking modal) ----------------
