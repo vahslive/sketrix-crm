@@ -39,12 +39,17 @@ export async function onRequestPost({ request, env, params }) {
     `UPDATE bookings SET status = 'en_route', departed_at = datetime('now'), eta_text = ?, distance_miles = ? WHERE id = ?`
   ).bind(eta.text, eta.miles, params.id).run();
 
+  // The name the customer is expecting at their door, which may not be the
+  // one on the tax forms. Falls back to the real name when no display name is
+  // set, so nobody's text ever arrives unsigned.
+  const installerName = (user.display_name || '').trim() || user.name;
+
   if (booking.phone && booking.sms_consent) {
     await sendSms(
       env,
       booking.phone,
-      `Mount It Right: ${user.name} is on the way! Estimated arrival ${eta.text}.`,
-      { template: 'ON_THE_WAY', params: { master: user.name, eta: eta.text } }
+      `Mount It Right: ${installerName} is on the way! Estimated arrival ${eta.text}.`,
+      { template: 'ON_THE_WAY', params: { master: installerName, eta: eta.text } }
     );
   }
 
