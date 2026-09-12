@@ -10,7 +10,7 @@ export async function onRequestGet({ env, params }) {
     `SELECT a.token, a.status, a.customer_name, a.property_status, a.signed_at, a.quoted_total,
             b.id AS booking_id, b.name, b.address, b.booking_date, b.booking_time,
             b.total_price, b.actual_total,
-            u.name AS master_name
+            COALESCE(u.display_name, u.name) AS master_name
      FROM job_authorizations a
      JOIN bookings b ON b.id = a.booking_id
      LEFT JOIN users u ON u.id = b.claimed_by
