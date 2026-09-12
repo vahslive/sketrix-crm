@@ -2930,9 +2930,21 @@
     loadBookings();
   }
   async function deleteBooking(id){
-    if(!confirm('Delete this booking permanently?')) return;
-    await fetch(`/api/bookings/${id}`, { method:'DELETE', headers: authHeaders() });
-    loadBookings();
+    if(!confirm(
+      `Delete booking #${id} permanently?\n\n` +
+      `Its chat and any signed customer approval go with it. This cannot be undone.`
+    )) return;
+
+    // The old version fired the request and reloaded the list regardless. When
+    // the server refused, the row simply reappeared and nothing explained why.
+    try {
+      const res = await fetch(`/api/bookings/${id}`, { method:'DELETE', headers: authHeaders() });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok || !data.ok) throw new Error(data.error || `The server returned ${res.status}.`);
+      loadBookings();
+    } catch (err) {
+      alert(`Booking #${id} was not deleted.\n\n${err.message || err}`);
+    }
   }
 
   let addTvs = []; // finalized TVs for the manual booking form; fields below hold the TV in progress
