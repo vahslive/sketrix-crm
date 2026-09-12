@@ -285,6 +285,55 @@
   .appr-tag.pending{ background:var(--danger-soft); color:var(--danger); }
   .appr-counts{ font-size:12px; color:var(--ink-soft); }
 
+  /* ---------- reviews ---------- */
+  .rev-summary{
+    background:var(--paper); border:1px solid var(--line); border-radius:16px;
+    padding:22px 24px; margin-bottom:20px;
+    display:grid; grid-template-columns:auto 1fr auto; gap:32px; align-items:center;
+  }
+  @media (max-width:820px){ .rev-summary{ grid-template-columns:1fr; gap:20px; } }
+  .rev-avg{ text-align:center; }
+  .rev-avg-num{ font-family:var(--display); font-size:42px; line-height:1; font-weight:800; }
+  .rev-avg-stars{ color:#F5B942; font-size:15px; letter-spacing:3px; margin-top:6px; }
+  .rev-avg-label{ font-size:11.5px; color:var(--ink-soft); margin-top:6px; }
+  .rev-bars{ max-width:340px; }
+  .rev-bar-row{ display:flex; align-items:center; gap:10px; font-size:11.5px; color:var(--ink-soft); margin-bottom:5px; }
+  .rev-bar-row:last-child{ margin-bottom:0; }
+  .rev-bar-track{ flex:1; height:7px; border-radius:100px; background:var(--mist); overflow:hidden; }
+  /* Block, not the default inline: an inline span ignores width and height,
+     which renders every bar as an empty track. */
+  .rev-bar-fill{ display:block; height:100%; border-radius:100px; background:#F5B942; }
+  .rev-bar-n{ width:22px; text-align:right; font-variant-numeric:tabular-nums; }
+  .rev-rate{ text-align:center; }
+  .rev-rate-num{ font-family:var(--display); font-size:26px; font-weight:800; }
+  .rev-rate-label{ font-size:11.5px; color:var(--ink-soft); margin-top:4px; max-width:170px; line-height:1.45; }
+
+  .rev-grid{ display:grid; grid-template-columns:1.6fr 1fr; gap:20px; align-items:start; }
+  @media (max-width:980px){ .rev-grid{ grid-template-columns:1fr; } }
+
+  .rev-chips{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:4px; }
+  .rev-chip{
+    background:none; border:1px solid var(--line); border-radius:100px;
+    padding:6px 13px; font-size:12px; font-weight:600; color:var(--ink-soft); font-family:inherit;
+  }
+  .rev-chip.active{ background:var(--signal-soft); border-color:transparent; color:var(--signal); }
+
+  .rev-row{ padding:15px 0; border-bottom:1px solid var(--line); }
+  .rev-row:last-child{ border-bottom:none; }
+  .rev-row.low{ border-left:3px solid var(--danger); padding-left:13px; margin-left:-16px; }
+  .rev-top{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .rev-stars{ font-size:13px; letter-spacing:2px; color:#F5B942; }
+  .rev-who{ font-size:13.5px; font-weight:600; }
+  .rev-meta{ font-size:12px; color:var(--ink-soft); margin-top:4px; line-height:1.5; }
+  /* Indented and quoted, because this is the customer talking, not our data. */
+  .rev-quote{
+    margin-top:9px; padding:11px 13px; background:var(--mist); border-radius:10px;
+    font-size:13px; line-height:1.55; white-space:pre-wrap;
+  }
+  .rev-master-row{ display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid var(--line); gap:12px; }
+  .rev-master-row:last-child{ border-bottom:none; }
+  .rev-master-score{ font-size:13.5px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
+
   /* ---------- modal ---------- */
   .modal-overlay{
     display:none; position:fixed; inset:0; background:rgba(10,10,12,0.4);
@@ -498,6 +547,11 @@
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H8l-4 4V6a1 1 0 0 1 1-1z"/></svg>
       Messages
       <span id="messagesBadge" class="nav-badge" style="display:none;"></span>
+    </div>
+    <div class="nav-item" data-view="reviews" onclick="switchView('reviews')" style="position:relative;">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.2l5.9-.9z"/></svg>
+      Reviews
+      <span id="reviewsBadge" class="nav-badge" style="display:none;"></span>
     </div>
     <div class="nav-item" data-view="approvals" onclick="switchView('approvals')">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 16c2.5 0 2.5-8 5-8s2.5 6 5 6 2-3 4-3"/><path d="M3 21h18"/><path d="M15 4h6M18 1v6"/></svg>
@@ -810,6 +864,36 @@
       </div>
     </div>
 
+    <!-- REVIEWS VIEW -->
+    <div class="view" id="view-reviews">
+      <div class="page-head">
+        <div>
+          <h1>Reviews</h1>
+          <div class="sub">What customers said after the job — including the part they didn't post publicly.</div>
+        </div>
+        <a class="btn-outline" id="googleProfileBtn"
+           href="https://g.page/r/CViAVpQErOyFEBM/review" target="_blank" rel="noopener">Google profile</a>
+      </div>
+
+      <div id="reviewsSummary"></div>
+
+      <div class="rev-grid">
+        <div class="panel">
+          <div class="rev-chips">
+            <button class="rev-chip active" data-filter="all" onclick="setReviewFilter('all')">All</button>
+            <button class="rev-chip" data-filter="low" onclick="setReviewFilter('low')">Needs attention</button>
+            <button class="rev-chip" data-filter="comment" onclick="setReviewFilter('comment')">With a comment</button>
+          </div>
+          <div id="reviewsList"><div class="empty">Loading…</div></div>
+        </div>
+
+        <div class="panel">
+          <h3>By installer</h3>
+          <div id="reviewsByMaster"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- APPROVALS VIEW -->
     <div class="view" id="view-approvals">
       <div class="page-head">
@@ -858,6 +942,11 @@
           <div class="detail-section" id="detailApprovalWrap" style="display:none;">
             <div class="detail-label">Customer approval</div>
             <div id="detailApproval"></div>
+          </div>
+
+          <div class="detail-section" id="detailRatingWrap" style="display:none;">
+            <div class="detail-label">Customer rating</div>
+            <div id="detailRating"></div>
           </div>
 
           <div class="detail-section">
@@ -1151,6 +1240,7 @@
     if(view === 'messages'){ showMessagesList(); loadMessagesInbox(); checkForNewMessages(); }
     if(view === 'calendar') renderCalendarMonth();
     if(view === 'approvals') loadApprovals();
+    if(view === 'reviews') loadReviews();
     if(view === 'settings') renderSettings();
   }
 
@@ -1175,6 +1265,7 @@
     allBookings = data.bookings || [];
     renderStats();
     renderBookings();
+    updateReviewsBadge();
   }
 
   function renderStats(){
@@ -1735,6 +1826,165 @@
     document.getElementById('detailTimeline').innerHTML = rows.join('');
   }
 
+  // ---------------- REVIEWS ----------------
+  //
+  // Five stars sends the customer to Google. Anything less keeps them here and
+  // asks what went wrong — so the worst feedback never becomes public, but it
+  // does have to reach someone. This is that someone.
+  let allReviews = [];
+  let reviewMasters = [];
+  let reviewFilter = 'all';
+
+  function reviewStars(n){
+    return '★'.repeat(n) + '☆'.repeat(5 - n);
+  }
+
+  // rated_at is a full timestamp, the fallbacks are plain dates. Feeding a
+  // bare 'YYYY-MM-DD' to the clock formatter produces "Invalid Date", so each
+  // shape is handled as what it is.
+  function reviewWhen(r){
+    const stamp = r.rated_at || r.completed_at;
+    if(stamp && stamp.includes(' ')) return fmtClock(stamp);
+    return stamp || r.booking_date || '';
+  }
+
+  async function loadReviews(){
+    const list = document.getElementById('reviewsList');
+    try {
+      const res = await fetch('/api/reviews', { headers: authHeaders() });
+      if(res.status === 401){ logout(); return; }
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Could not load reviews');
+
+      allReviews = data.reviews || [];
+      reviewMasters = data.masters || [];
+      renderReviewsSummary(data.summary || {});
+      renderReviewMasters();
+      renderReviewsList();
+    } catch (err) {
+      list.innerHTML = `<div class="empty">${esc(String(err.message || err))}</div>`;
+    }
+  }
+
+  function renderReviewsSummary(s){
+    const wrap = document.getElementById('reviewsSummary');
+
+    if(!s.count){
+      wrap.innerHTML = '';
+      return;
+    }
+
+    const avg = s.average || 0;
+    const rounded = Math.round(avg);
+    const dist = s.distribution || {};
+    const max = Math.max(1, ...Object.values(dist));
+
+    const bars = [5,4,3,2,1].map(n => `
+      <div class="rev-bar-row">
+        <span style="width:12px;">${n}</span>
+        <span style="color:#F5B942;">★</span>
+        <span class="rev-bar-track"><span class="rev-bar-fill" style="width:${((dist[n]||0)/max*100).toFixed(1)}%;"></span></span>
+        <span class="rev-bar-n">${dist[n] || 0}</span>
+      </div>`).join('');
+
+    // Share of finished jobs that produced an answer. A high average off three
+    // replies out of forty says less than it looks.
+    const rate = s.completedJobs ? Math.round(s.count / s.completedJobs * 100) : 0;
+
+    wrap.innerHTML = `
+      <div class="rev-summary">
+        <div class="rev-avg">
+          <div class="rev-avg-num">${avg.toFixed(1)}</div>
+          <div class="rev-avg-stars">${reviewStars(rounded)}</div>
+          <div class="rev-avg-label">${s.count} review${s.count === 1 ? '' : 's'}</div>
+        </div>
+        <div class="rev-bars">${bars}</div>
+        <div class="rev-rate">
+          <div class="rev-rate-num">${rate}%</div>
+          <div class="rev-rate-label">of ${s.completedJobs} completed jobs left a rating</div>
+        </div>
+      </div>`;
+  }
+
+  function renderReviewMasters(){
+    const wrap = document.getElementById('reviewsByMaster');
+    if(!reviewMasters.length){
+      wrap.innerHTML = '<div class="member-sub">No rated jobs with an installer assigned yet.</div>';
+      return;
+    }
+    wrap.innerHTML = reviewMasters.map(m => `
+      <div class="rev-master-row">
+        <div>
+          <div class="member-name">${esc(m.name)}</div>
+          <div class="member-sub">${m.count} rated${m.low ? ` · ${m.low} below 5` : ''}</div>
+        </div>
+        <div class="rev-master-score" style="color:${m.average >= 4.8 ? 'var(--level)' : m.average >= 4.2 ? 'var(--warn)' : 'var(--danger)'};">
+          ${m.average.toFixed(2)} <span style="color:#F5B942;">★</span>
+        </div>
+      </div>`).join('');
+  }
+
+  function setReviewFilter(f){
+    reviewFilter = f;
+    document.querySelectorAll('.rev-chip').forEach(el => el.classList.toggle('active', el.dataset.filter === f));
+    renderReviewsList();
+  }
+
+  function renderReviewsList(){
+    const list = document.getElementById('reviewsList');
+    const rows = allReviews.filter(r => {
+      if(reviewFilter === 'low') return r.rating < 5;
+      if(reviewFilter === 'comment') return (r.feedback || '').trim().length > 0;
+      return true;
+    });
+
+    if(!rows.length){
+      list.innerHTML = `<div class="empty">${
+        allReviews.length ? 'Nothing in this filter.' : 'No reviews yet. They arrive once customers open their receipt.'
+      }</div>`;
+      return;
+    }
+
+    list.innerHTML = rows.map(r => {
+      const low = r.rating < 5;
+      const meta = [
+        `#${r.id}`,
+        esc(r.address || 'No address'),
+        reviewWhen(r),
+        r.master_name ? esc(r.master_name) : null,
+        `$${r.actual_total ?? r.total_price ?? 0}`,
+      ].filter(Boolean).join(' · ');
+
+      return `
+        <div class="rev-row ${low ? 'low' : ''}">
+          <div class="rev-top">
+            <span class="rev-stars">${reviewStars(r.rating)}</span>
+            <span class="rev-who">${esc(r.name || 'Customer')}</span>
+            <button class="row-actions-btn" style="margin-left:auto;" onclick="openJobDetail(${r.id})">Open job</button>
+          </div>
+          <div class="rev-meta">${meta}</div>
+          ${(r.feedback || '').trim() ? `<div class="rev-quote">${esc(r.feedback)}</div>` : ''}
+        </div>`;
+    }).join('');
+  }
+
+  /// A standing count of every imperfect review would just become wallpaper.
+  /// Two weeks is roughly how long a complaint is still worth acting on.
+  function updateReviewsBadge(){
+    const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    const recent = allBookings.filter(b => {
+      if(b.rating == null || b.rating >= 5) return false;
+      const stamp = b.rated_at || b.completed_at;
+      if(!stamp) return false;
+      const t = new Date(stamp.includes(' ') ? stamp + 'Z' : stamp).getTime();
+      return !isNaN(t) && t >= cutoff;
+    }).length;
+
+    // The same silent dot the Messages item uses — it marks "look here",
+    // not a number, which is all an 8-pixel circle can honestly say.
+    document.getElementById('reviewsBadge').style.display = recent ? 'block' : 'none';
+  }
+
   // ---------------- APPROVALS (signed authorizations) ----------------
   //
   // The whole history is fetched once and filtered in the browser. Searching a
@@ -1922,6 +2172,23 @@
 
     document.getElementById('detailServices').innerHTML =
       `<div class="detail-label">Services</div>` + serviceBreakdown(b);
+
+    // Comes straight off the booking row — /api/bookings already returns it,
+    // so there is nothing to fetch.
+    const ratingWrap = document.getElementById('detailRatingWrap');
+    if(b.rating != null){
+      ratingWrap.style.display = 'block';
+      const comment = (b.feedback || '').trim();
+      document.getElementById('detailRating').innerHTML = `
+        <div class="rev-top">
+          <span class="rev-stars">${reviewStars(b.rating)}</span>
+          <span class="rev-who">${b.rating} out of 5</span>
+        </div>
+        <div class="rev-meta">${reviewWhen(b) || 'Date unknown'}</div>
+        ${comment ? `<div class="rev-quote">${esc(comment)}</div>` : ''}`;
+    } else {
+      ratingWrap.style.display = 'none';
+    }
 
     const notesWrap = document.getElementById('detailNotesWrap');
     if(b.notes){
