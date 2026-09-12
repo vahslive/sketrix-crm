@@ -16,8 +16,8 @@ export async function onRequestGet({ request, env }) {
 
   const { results } = await env.DB.prepare(
     includeInactive
-      ? `SELECT id, name, email, phone, role, active FROM users ORDER BY active DESC, role, name`
-      : `SELECT id, name, email, phone, role, active FROM users WHERE active = 1 ORDER BY role, name`
+      ? `SELECT id, name, display_name, email, phone, role, active FROM users ORDER BY active DESC, role, name`
+      : `SELECT id, name, display_name, email, phone, role, active FROM users WHERE active = 1 ORDER BY role, name`
   ).all();
 
   return Response.json({ ok: true, users: results });
