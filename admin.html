@@ -2930,21 +2930,9 @@
     loadBookings();
   }
   async function deleteBooking(id){
-    if(!confirm(
-      `Delete booking #${id} permanently?\n\n` +
-      `Its chat and any signed customer approval go with it. This cannot be undone.`
-    )) return;
-
-    // The old version fired the request and reloaded the list regardless. When
-    // the server refused, the row simply reappeared and nothing explained why.
-    try {
-      const res = await fetch(`/api/bookings/${id}`, { method:'DELETE', headers: authHeaders() });
-      const data = await res.json().catch(() => ({}));
-      if(!res.ok || !data.ok) throw new Error(data.error || `The server returned ${res.status}.`);
-      loadBookings();
-    } catch (err) {
-      alert(`Booking #${id} was not deleted.\n\n${err.message || err}`);
-    }
+    if(!confirm('Delete this booking permanently?')) return;
+    await fetch(`/api/bookings/${id}`, { method:'DELETE', headers: authHeaders() });
+    loadBookings();
   }
 
   let addTvs = []; // finalized TVs for the manual booking form; fields below hold the TV in progress
@@ -3159,8 +3147,15 @@
     membersEl.innerHTML = members.length
       ? members.map(u => `
         <div class="member-row"${u.active ? '' : ' style="opacity:.55;"'}>
-          <div><div class="member-name">${esc(u.name)}${u.id === authUser.id ? ' (you)' : ''}</div><div class="member-sub">${esc(u.email || u.phone) || '—'} · ${esc(u.role)}${u.active ? '' : ' · deactivated'}</div></div>
-          ${u.id === authUser.id ? '' : `<button class="row-actions-btn" onclick="setMemberActive(${u.id}, ${u.active ? 'false' : 'true'})">${u.active ? 'Deactivate' : 'Reactivate'}</button>`}
+          <div>
+            <div class="member-name">${esc(u.name)}${u.id === authUser.id ? ' (you)' : ''}</div>
+            <div class="member-sub">${esc(u.email || u.phone) || '—'} · ${esc(u.role)}${u.active ? '' : ' · deactivated'}</div>
+            <div class="member-sub">Customers see: <strong>${esc(u.display_name || u.name)}</strong>${u.display_name ? '' : ' <span style="opacity:.7;">(full name)</span>'}</div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button class="row-actions-btn" style="border-color:var(--line);" onclick="editDisplayName(${u.id})">Public name</button>
+            ${u.id === authUser.id ? '' : `<button class="row-actions-btn" onclick="setMemberActive(${u.id}, ${u.active ? 'false' : 'true'})">${u.active ? 'Deactivate' : 'Reactivate'}</button>`}
+          </div>
         </div>`).join('')
       : `<div class="member-row"><div><div class="member-name">${esc(authUser.name)} (you)</div><div class="member-sub">${esc(authUser.email || authUser.phone)} · ${esc(authUser.role)}</div></div></div>`;
   }
@@ -3332,6 +3327,26 @@
     });
     const data = await res.json().catch(() => ({}));
     if(!data.ok){ alert(data.error || 'Could not update this member.'); return; }
+    loadTeam();
+  }
+
+  /// The name customers read in their texts, on the signing page and on the
+  /// receipt. Everything internal — payouts, job history, the team list —
+  /// keeps the real one.
+  async function editDisplayName(id){
+    const current = prompt(
+      'What should customers call this installer?\n\n' +
+      'This is the name in "… is on the way" texts, on the approval page and on the receipt.\n' +
+      'Leave it empty to go back to using their full name.',
+      ''
+    );
+    if(current === null) return; // cancelled
+
+    const res = await fetch(`/api/users/${id}`, {
+      method:'PATCH', headers: authHeaders(true), body: JSON.stringify({ displayName: current }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!data.ok){ alert(data.error || 'Could not save that name.'); return; }
     loadTeam();
   }
 
