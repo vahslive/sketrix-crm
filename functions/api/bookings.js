@@ -12,6 +12,28 @@ function newReceiptToken() {
     .map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** A trimmed string, or null — never an empty string, which reads as data. */
+function clip(value, max) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim().slice(0, max);
+  return trimmed || null;
+}
+
+/**
+ * Serialises a plain object for storage, refusing anything larger than the
+ * cap. Oversized attribution is a sign of something wrong rather than a very
+ * enthusiastic campaign name, and it is not worth a row in the database.
+ */
+function jsonOrNull(value, maxChars) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  try {
+    const text = JSON.stringify(value);
+    return text.length > maxChars ? null : text;
+  } catch {
+    return null;
+  }
+}
+
 export async function onRequestPost({ request, env }) {
   let body;
   try {
@@ -22,7 +44,26 @@ export async function onRequestPost({ request, env }) {
 
   const user = await getUserFromRequest(request, env);
   const admin = user && user.role === 'admin';
+
+  // Two different things have historically been called "source", and they must
+  // not be confused:
+  //
+  //   source      — how the booking reached us: online, phone, typed by hand.
+  //   lead_source — where the customer came from: facebook, google, direct.
+  //
+  // An admin filling the form in the panel means the first; the booking form
+  // on the website means the second, because that is what its `source` field
+  // has always carried. Which one arrived is decided by who is signed in.
   const source = admin && body.source ? body.source : 'online';
+  const leadSource = admin
+    ? clip(body.leadSource, 60)
+    : clip(body.source, 60);
+
+  // Attribution and the pixel identifiers are stored as sent, because their
+  // only consumers are a report and the Conversions API. Capped, since this is
+  // an unauthenticated endpoint and nothing else limits what arrives here.
+  const attributionJson = jsonOrNull(body.attribution, 4000);
+  const metaJson = jsonOrNull(body.meta, 2000);
 
   const {
     address = null, lat = null, lng = null, inServiceArea = null,
@@ -67,14 +108,15 @@ export async function onRequestPost({ request, env }) {
 
   const result = await env.DB.prepare(
     `INSERT INTO bookings
-      (source, status, address, lat, lng, in_service_area, dismount, size, bracket, wall, wires, addons, total_price, booking_date, booking_time, name, phone, notes, receipt_token, tvs_json, sms_consent)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      (source, status, address, lat, lng, in_service_area, dismount, size, bracket, wall, wires, addons, total_price, booking_date, booking_time, name, phone, notes, receipt_token, tvs_json, sms_consent, lead_source, attribution_json, meta_json)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).bind(
     source, 'new', address, lat, lng, inServiceArea ? 1 : 0,
     dismount, size, bracket, wall, wires, JSON.stringify(addons || []),
     finalTotal, date, time, name, phone, notes, receiptToken,
     tvs && tvs.length ? JSON.stringify(tvs) : null,
-    smsConsent ? 1 : 0
+    smsConsent ? 1 : 0,
+    leadSource, attributionJson, metaJson
   ).run();
 
   const bookingId = result.meta.last_row_id;
