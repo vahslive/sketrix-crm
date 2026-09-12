@@ -285,6 +285,47 @@
   .appr-tag.pending{ background:var(--danger-soft); color:var(--danger); }
   .appr-counts{ font-size:12px; color:var(--ink-soft); }
 
+  /* ---------- marketing ---------- */
+  .mk-range{ display:flex; gap:7px; flex-wrap:wrap; }
+  .mk-range button{
+    background:none; border:1px solid var(--line); border-radius:100px;
+    padding:7px 14px; font-size:12.5px; font-weight:600; color:var(--ink-soft); font-family:inherit;
+  }
+  .mk-range button.active{ background:var(--signal-soft); border-color:transparent; color:var(--signal); }
+
+  .mk-stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+  @media (max-width:900px){ .mk-stats{ grid-template-columns:repeat(2,1fr); } }
+  .mk-stat{ background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:17px 18px; }
+  .mk-stat-label{ font-size:11px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--ink-soft); }
+  .mk-stat-value{ font-family:var(--display); font-size:26px; font-weight:800; margin-top:7px; font-variant-numeric:tabular-nums; }
+  .mk-stat-note{ font-size:11.5px; color:var(--ink-soft); margin-top:4px; }
+
+  /* Tables sit in half-width panels, so they need somewhere to go when the
+     columns don't fit rather than spilling past the card's edge. */
+  .mk-scroll{ overflow-x:auto; }
+  .mk-table{ width:100%; min-width:420px; border-collapse:collapse; font-size:13px; }
+  .mk-table th{
+    text-align:left; font-size:10.5px; font-weight:700; letter-spacing:0.05em;
+    text-transform:uppercase; color:var(--ink-soft); padding:0 10px 9px 0; white-space:nowrap;
+  }
+  .mk-table td{ padding:11px 10px 11px 0; border-top:1px solid var(--line); vertical-align:top; }
+  .mk-table td.num, .mk-table th.num{ text-align:right; font-variant-numeric:tabular-nums; padding-right:0; }
+  .mk-name{ font-weight:600; }
+  .mk-sub{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; }
+  .mk-good{ color:var(--level); font-weight:700; }
+  .mk-bad{ color:var(--danger); font-weight:700; }
+  .mk-dim{ color:var(--ink-soft); }
+
+  .mk-grid{ display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; margin-top:20px; }
+  @media (max-width:980px){ .mk-grid{ grid-template-columns:1fr; } }
+  .mk-spend-form{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+  .mk-spend-form input{
+    background:var(--mist); border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px; font-size:13px; color:var(--ink); font-family:inherit; width:100%;
+  }
+  .mk-spend-form input::placeholder{ color:var(--ink-soft); opacity:.8; }
+  .mk-spend-form .full{ grid-column:1 / -1; }
+
   /* ---------- reviews ---------- */
   .rev-summary{
     background:var(--paper); border:1px solid var(--line); border-radius:16px;
@@ -547,6 +588,10 @@
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H8l-4 4V6a1 1 0 0 1 1-1z"/></svg>
       Messages
       <span id="messagesBadge" class="nav-badge" style="display:none;"></span>
+    </div>
+    <div class="nav-item" data-view="marketing" onclick="switchView('marketing')">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M17 8.5a4 4 0 0 1 0 7"/><path d="M19.8 5.7a8 8 0 0 1 0 12.6"/></svg>
+      Marketing
     </div>
     <div class="nav-item" data-view="reviews" onclick="switchView('reviews')" style="position:relative;">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.2l5.9-.9z"/></svg>
@@ -861,6 +906,72 @@
           <h3>Pending invites</h3>
           <div id="invitesList"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- MARKETING VIEW -->
+    <div class="view" id="view-marketing">
+      <div class="page-head">
+        <div>
+          <h1>Marketing</h1>
+          <div class="sub">What each channel brought in, and what it cost to bring it.</div>
+        </div>
+        <div class="mk-range" id="mkRange">
+          <button class="active" data-days="30" onclick="setMkRange(30)">30 days</button>
+          <button data-days="90" onclick="setMkRange(90)">90 days</button>
+          <button data-days="0" onclick="setMkRange(0)">All time</button>
+        </div>
+      </div>
+
+      <div id="mkStats"></div>
+
+      <div class="panel">
+        <h3>By channel</h3>
+        <div id="mkChannels"></div>
+      </div>
+
+      <div class="mk-grid">
+        <div class="panel">
+          <h3>Campaigns</h3>
+          <div id="mkCampaigns"></div>
+        </div>
+        <div class="panel">
+          <h3>Creatives</h3>
+          <div id="mkCreatives"></div>
+        </div>
+      </div>
+
+      <div class="mk-grid">
+        <div class="panel">
+          <h3>Ad spend</h3>
+          <div class="member-sub" style="margin-bottom:14px;">
+            Entered by hand, per month. Without it the table above counts
+            bookings but can't tell you what one cost.
+          </div>
+          <div class="mk-spend-form">
+            <input id="mkSpendChannel" type="text" placeholder="Channel" list="mkChannelList">
+            <input id="mkSpendPeriod" type="month">
+            <input id="mkSpendCampaign" class="full" type="text" placeholder="Campaign — optional">
+            <input id="mkSpendAmount" type="text" inputmode="decimal" placeholder="Amount $">
+            <button class="btn" onclick="saveSpend()">Save</button>
+          </div>
+          <datalist id="mkChannelList">
+            <option value="facebook"></option>
+            <option value="google"></option>
+            <option value="yelp"></option>
+          </datalist>
+          <div id="mkSpendList"></div>
+        </div>
+
+        <div class="panel">
+          <h3>Landing pages</h3>
+          <div id="mkPages"></div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:20px;">
+        <h3>Recent bookings by source</h3>
+        <div id="mkRecent"></div>
       </div>
     </div>
 
@@ -1241,6 +1352,7 @@
     if(view === 'calendar') renderCalendarMonth();
     if(view === 'approvals') loadApprovals();
     if(view === 'reviews') loadReviews();
+    if(view === 'marketing') loadMarketing();
     if(view === 'settings') renderSettings();
   }
 
@@ -1824,6 +1936,186 @@
     });
 
     document.getElementById('detailTimeline').innerHTML = rows.join('');
+  }
+
+  // ---------------- MARKETING ----------------
+  //
+  // Two numbers per row, always: what was booked and what was completed. A
+  // channel that fills the calendar with jobs that cancel looks excellent on
+  // the first and tells the truth on the second.
+  let mkDays = 30;
+  let mkData = null;
+
+  function money(n){ return '$' + Math.round(n || 0).toLocaleString('en-US'); }
+
+  async function loadMarketing(){
+    const stats = document.getElementById('mkStats');
+    try {
+      const res = await fetch(`/api/marketing?days=${mkDays}`, { headers: authHeaders() });
+      if(res.status === 401){ logout(); return; }
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error || 'Could not load marketing data');
+      mkData = data;
+      renderMarketing();
+    } catch (err) {
+      stats.innerHTML = `<div class="empty">${esc(String(err.message || err))}</div>`;
+    }
+  }
+
+  function setMkRange(days){
+    mkDays = days;
+    document.querySelectorAll('#mkRange button').forEach(b =>
+      b.classList.toggle('active', Number(b.dataset.days) === days));
+    loadMarketing();
+  }
+
+  function renderMarketing(){
+    const t = mkData.totals;
+
+    // Both computed on the server against paid bookings only — spend divided
+    // by every booking, free ones included, is a number that flatters the ads
+    // and gets better the more organic work comes in.
+    const cpb = t.costPerBooking;
+    const roi = t.returnOnSpend;
+
+    document.getElementById('mkStats').innerHTML = `
+      <div class="mk-stats">
+        <div class="mk-stat">
+          <div class="mk-stat-label">Bookings</div>
+          <div class="mk-stat-value">${t.bookings}</div>
+          <div class="mk-stat-note">${t.completed} completed</div>
+        </div>
+        <div class="mk-stat">
+          <div class="mk-stat-label">Completed work</div>
+          <div class="mk-stat-value">${money(t.completedValue)}</div>
+          <div class="mk-stat-note">${money(t.bookedValue)} booked</div>
+        </div>
+        <div class="mk-stat">
+          <div class="mk-stat-label">Ad spend</div>
+          <div class="mk-stat-value">${money(t.spend)}</div>
+          <div class="mk-stat-note">${t.spend ? 'entered below' : 'nothing entered yet'}</div>
+        </div>
+        <div class="mk-stat">
+          <div class="mk-stat-label">Cost per booking</div>
+          <div class="mk-stat-value">${cpb != null ? '$' + cpb.toFixed(0) : '—'}</div>
+          <div class="mk-stat-note">${
+            cpb != null
+              ? `${t.paidBookings} paid booking${t.paidBookings === 1 ? '' : 's'} · ${roi.toFixed(1)}× back`
+              : 'enter spend to see this'
+          }</div>
+        </div>
+      </div>`;
+
+    renderMkTable('mkChannels', mkData.channels, { spend:true });
+    renderMkTable('mkCampaigns', mkData.campaigns, { spend:true, sub:r => r.channel });
+    renderMkTable('mkCreatives', mkData.creatives, { sub:r => `${r.channel || ''}${r.campaign ? ' · ' + r.campaign : ''}` });
+    renderMkTable('mkPages', mkData.pages, {});
+    renderSpendList();
+    renderMkRecent();
+  }
+
+  function renderMkTable(elId, rows, opts){
+    const el = document.getElementById(elId);
+    if(!rows || !rows.length){
+      el.innerHTML = '<div class="member-sub">Nothing here yet.</div>';
+      return;
+    }
+
+    const showSpend = !!opts.spend;
+    el.innerHTML = `
+      <div class="mk-scroll"><table class="mk-table">
+        <thead><tr>
+          <th>Source</th>
+          <th class="num">Booked</th>
+          <th class="num">Done</th>
+          <th class="num">Revenue</th>
+          ${showSpend ? '<th class="num">Spend</th><th class="num">Per booking</th>' : ''}
+        </tr></thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td>
+                <div class="mk-name">${esc(r.label)}</div>
+                ${opts.sub && opts.sub(r) ? `<div class="mk-sub">${esc(opts.sub(r))}</div>` : ''}
+                ${r.cancelled ? `<div class="mk-sub">${r.cancelled} cancelled</div>` : ''}
+              </td>
+              <td class="num">${r.booked}</td>
+              <td class="num">${r.completed}</td>
+              <td class="num">${money(r.completedValue)}</td>
+              ${showSpend ? `
+                <td class="num ${r.spend ? '' : 'mk-dim'}">${r.spend ? money(r.spend) : '—'}</td>
+                <td class="num">${
+                  r.costPerBooking == null ? '<span class="mk-dim">—</span>'
+                  : `<span class="${r.returnOnSpend >= 2 ? 'mk-good' : r.returnOnSpend < 1 ? 'mk-bad' : ''}">$${r.costPerBooking.toFixed(0)}</span>`
+                }</td>` : ''}
+            </tr>`).join('')}
+        </tbody>
+      </table></div>`;
+  }
+
+  function renderSpendList(){
+    const el = document.getElementById('mkSpendList');
+    const rows = mkData.spend || [];
+    if(!rows.length){
+      el.innerHTML = '<div class="member-sub">No spend recorded yet.</div>';
+      return;
+    }
+    el.innerHTML = rows.map(r => `
+      <div class="member-row">
+        <div>
+          <div class="member-name">${esc(r.channel)}${r.campaign ? ' · ' + esc(r.campaign) : ''}</div>
+          <div class="member-sub">${esc(r.period)}${r.note ? ' · ' + esc(r.note) : ''}</div>
+        </div>
+        <div class="rev-master-score">${money(r.amount_cents / 100)}</div>
+      </div>`).join('');
+  }
+
+  function renderMkRecent(){
+    const el = document.getElementById('mkRecent');
+    const rows = mkData.recent || [];
+    if(!rows.length){
+      el.innerHTML = '<div class="empty">No bookings in this period.</div>';
+      return;
+    }
+    el.innerHTML = rows.map(r => `
+      <div class="member-row">
+        <div>
+          <div class="member-name">#${r.id} · ${esc(r.name || 'No name')} <span class="badge ${esc(r.status)}">${esc(r.status.replace('_',' '))}</span></div>
+          <div class="member-sub">${esc(r.channel)}${r.campaign ? ' · ' + esc(r.campaign) : ''}${r.creative ? ' · ' + esc(r.creative) : ''} · ${esc(r.page)} · ${esc((r.created_at || '').slice(0,10))}</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="rev-master-score">${money(r.total)}</div>
+          <button class="row-actions-btn" onclick="openJobDetail(${r.id})">Open</button>
+        </div>
+      </div>`).join('');
+  }
+
+  async function saveSpend(){
+    const channel = document.getElementById('mkSpendChannel').value.trim();
+    const period = document.getElementById('mkSpendPeriod').value.trim();
+    const campaign = document.getElementById('mkSpendCampaign').value.trim();
+    const amount = Number(document.getElementById('mkSpendAmount').value.replace(/[^0-9.]/g, ''));
+
+    if(!channel || !period){
+      alert('Channel and month are both needed.');
+      return;
+    }
+    if(!Number.isFinite(amount)){
+      alert('Enter the amount in dollars.');
+      return;
+    }
+
+    const res = await fetch('/api/marketing', {
+      method: 'POST',
+      headers: authHeaders(true),
+      body: JSON.stringify({ channel, campaign, period, amount }),
+    });
+    const data = await res.json();
+    if(!data.ok){ alert(data.error || 'Could not save that.'); return; }
+
+    document.getElementById('mkSpendAmount').value = '';
+    document.getElementById('mkSpendCampaign').value = '';
+    loadMarketing();
   }
 
   // ---------------- REVIEWS ----------------
