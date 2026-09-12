@@ -15,8 +15,18 @@ export async function onRequestPost({ request, env, params }) {
   }
   const feedback = typeof body.feedback === 'string' ? body.feedback.slice(0, 2000) : null;
 
+  // The page posts twice: once the moment a star is tapped, then again with
+  // the written comment. The second call must not wipe the first — hence
+  // COALESCE rather than a plain overwrite, so an empty second post keeps
+  // whatever was already there.
+  //
+  // rated_at records when the customer answered, which is not when the job was
+  // finished: a review can land days later, and the admin list is ordered by
+  // this so new ones surface at the top.
   const result = await env.DB.prepare(
-    `UPDATE bookings SET rating = ?, feedback = ? WHERE receipt_token = ?`
+    `UPDATE bookings
+     SET rating = ?, feedback = COALESCE(?, feedback), rated_at = datetime('now')
+     WHERE receipt_token = ?`
   ).bind(rating, feedback, params.token).run();
 
   if (result.meta.changes === 0) {
