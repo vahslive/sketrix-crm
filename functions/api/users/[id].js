@@ -22,14 +22,43 @@ export async function onRequestPatch({ request, env, params }) {
     return Response.json({ ok: false, error: 'Invalid JSON' }, { status: 400 });
   }
 
-  if (typeof body.active !== 'boolean') {
-    return Response.json({ ok: false, error: 'Send { active: true } or { active: false }' }, { status: 400 });
+  const changingActive = typeof body.active === 'boolean';
+  const changingDisplayName = 'displayName' in body;
+
+  if (!changingActive && !changingDisplayName) {
+    return Response.json(
+      { ok: false, error: 'Send { active: true | false } or { displayName: "..." }' },
+      { status: 400 }
+    );
   }
 
   const targetId = Number(params.id);
   const target = await env.DB.prepare(`SELECT id, name, role, active FROM users WHERE id = ?`)
     .bind(targetId).first();
   if (!target) return Response.json({ ok: false, error: 'User not found' }, { status: 404 });
+
+  // The name customers see, which is not always the name on the paperwork.
+  // "Andrii Vakhmianin is on the way" is correct and unhelpful; "Andy is on
+  // the way" is what the person at the door is expecting. Only this one is
+  // ever shown outside the company — everything internal keeps the real name,
+  // so payouts, 1099s and job history stay attached to a real person.
+  if (changingDisplayName) {
+    const raw = body.displayName;
+    if (raw !== null && typeof raw !== 'string') {
+      return Response.json({ ok: false, error: 'A display name has to be text.' }, { status: 400 });
+    }
+    const displayName = (raw || '').trim().slice(0, 40);
+    if (displayName && displayName.length < 2) {
+      return Response.json({ ok: false, error: 'A display name needs at least two characters.' }, { status: 400 });
+    }
+    // Empty clears it, and customers see the real name again.
+    await env.DB.prepare(`UPDATE users SET display_name = ? WHERE id = ?`)
+      .bind(displayName || null, targetId).run();
+  }
+
+  if (!changingActive) {
+    return Response.json({ ok: true, displayName: (body.displayName || '').trim() || null });
+  }
 
   // Locking yourself out is a one-way door: an inactive user can't sign in, so
   // they can't undo it either.
