@@ -46,6 +46,28 @@ export async function onRequestDelete({ request, env, params }) {
   if (!user || user.role !== 'admin') {
     return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
-  await env.DB.prepare(`DELETE FROM bookings WHERE id = ?`).bind(params.id).run();
-  return Response.json({ ok: true });
+
+  const booking = await env.DB.prepare(`SELECT id FROM bookings WHERE id = ?`)
+    .bind(params.id).first();
+  if (!booking) {
+    return Response.json({ ok: false, error: 'That booking no longer exists.' }, { status: 404 });
+  }
+
+  // Other tables point at this booking, and SQLite refuses to delete a row
+  // something still references. Deleting the booking on its own therefore
+  // failed for any job that had ever been messaged about or signed for —
+  // which is most of them — and the failure was invisible.
+  //
+  // One batch, so a half-deleted booking can't exist: either the chat, the
+  // approval and the job all go, or nothing does.
+  await env.DB.batch([
+    env.DB.prepare(`DELETE FROM messages WHERE booking_id = ?`).bind(params.id),
+    env.DB.prepare(`DELETE FROM job_authorizations WHERE booking_id = ?`).bind(params.id),
+    env.DB.prepare(`DELETE FROM bookings WHERE id = ?`).bind(params.id),
+  ]);
+
+  // Chat attachments and signature images stay in R2. They are unreachable
+  // without the rows that named them, and a stray key costs a fraction of a
+  // cent — cheaper than a delete that half-succeeds.
+  return Response.json({ ok: true, deleted: Number(params.id) });
 }
