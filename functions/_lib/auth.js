@@ -54,7 +54,7 @@ export async function getUserFromRequest(request, env) {
   if (!session) return null;
 
   const user = await env.DB.prepare(
-    `SELECT id, name, email, phone, role, active FROM users WHERE id = ?`
+    `SELECT id, name, display_name, email, phone, role, active FROM users WHERE id = ?`
   ).bind(session.user_id).first();
   if (!user || !user.active) return null;
 
