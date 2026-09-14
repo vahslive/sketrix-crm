@@ -285,6 +285,34 @@
   .appr-tag.pending{ background:var(--danger-soft); color:var(--danger); }
   .appr-counts{ font-size:12px; color:var(--ink-soft); }
 
+  /* ---------- inventory ---------- */
+  .inv-row{ display:flex; align-items:center; gap:14px; padding:14px 0; border-bottom:1px solid var(--line); }
+  .inv-row:last-child{ border-bottom:none; }
+  .inv-row.low{ border-left:3px solid var(--warn); padding-left:13px; margin-left:-16px; }
+  .inv-row.off{ opacity:.5; }
+  .inv-main{ flex:1; min-width:0; }
+  .inv-name{ font-size:13.5px; font-weight:600; }
+  .inv-sub{ font-size:11.5px; color:var(--ink-soft); margin-top:3px; line-height:1.5; }
+  .inv-qty{ font-family:var(--display); font-size:20px; font-weight:800; font-variant-numeric:tabular-nums; min-width:44px; text-align:right; }
+  .inv-qty.low{ color:var(--warn); }
+  .inv-qty.neg{ color:var(--danger); }
+  .inv-where{ display:inline-block; font-size:11px; padding:2px 7px; border-radius:100px; background:var(--mist); color:var(--ink-soft); margin-right:5px; }
+  .inv-actions{ display:flex; gap:6px; }
+
+  .inv-form{ display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:12px; }
+  .inv-form .full{ grid-column:1 / -1; }
+  .inv-form input, .inv-form select{
+    background:var(--mist); border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px; font-size:13px; color:var(--ink); font-family:inherit; width:100%;
+  }
+  .inv-move{ display:flex; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px solid var(--line); font-size:12.5px; }
+  .inv-move:last-child{ border-bottom:none; }
+  .inv-move-kind{ font-weight:700; text-transform:capitalize; }
+  .inv-move.used .inv-move-kind{ color:var(--signal); }
+  .inv-move.purchase .inv-move-kind{ color:var(--level); }
+  .inv-move.adjust .inv-move-kind{ color:var(--warn); }
+
+
   /* ---------- marketing ---------- */
   .mk-range{ display:flex; gap:7px; flex-wrap:wrap; }
   .mk-range button{
@@ -588,6 +616,11 @@
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H8l-4 4V6a1 1 0 0 1 1-1z"/></svg>
       Messages
       <span id="messagesBadge" class="nav-badge" style="display:none;"></span>
+    </div>
+    <div class="nav-item" data-view="inventory" onclick="switchView('inventory')" style="position:relative;">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4"/><path d="M3 17l9 4 9-4"/></svg>
+      Inventory
+      <span id="inventoryBadge" class="nav-badge" style="display:none;"></span>
     </div>
     <div class="nav-item" data-view="marketing" onclick="switchView('marketing')">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M17 8.5a4 4 0 0 1 0 7"/><path d="M19.8 5.7a8 8 0 0 1 0 12.6"/></svg>
@@ -905,6 +938,76 @@
         <div class="panel">
           <h3>Pending invites</h3>
           <div id="invitesList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INVENTORY VIEW -->
+    <div class="view" id="view-inventory">
+      <div class="page-head">
+        <div>
+          <h1>Inventory</h1>
+          <div class="sub">What's on the shelf, what's in the vans, and what's about to run out.</div>
+        </div>
+        <span class="appr-counts" id="invSummary"></span>
+      </div>
+
+      <div id="invList" class="panel"><div class="empty">Loading…</div></div>
+
+      <div class="mk-grid">
+        <div class="panel">
+          <h3>Receive a delivery</h3>
+          <div class="member-sub" style="margin-bottom:12px;">
+            Enter what the whole delivery cost. The average cost updates, and
+            the matching service in the price list picks it up — so margin is
+            worked out against what you actually paid.
+          </div>
+          <div class="inv-form">
+            <select id="invRecvItem" class="full"></select>
+            <input id="invRecvQty" type="number" min="1" placeholder="How many">
+            <input id="invRecvCost" type="text" inputmode="decimal" placeholder="Total paid $">
+            <input id="invRecvNote" class="full" type="text" placeholder="Supplier or order number (optional)">
+          </div>
+          <button class="btn" onclick="invReceive()">Add to warehouse</button>
+        </div>
+
+        <div class="panel">
+          <h3>Load a van</h3>
+          <div class="member-sub" style="margin-bottom:12px;">
+            Stock handed to a master stays yours until it goes into a wall —
+            it just moves from the shelf to their van.
+          </div>
+          <div class="inv-form">
+            <select id="invMoveItem" class="full"></select>
+            <select id="invMoveMaster"></select>
+            <input id="invMoveQty" type="number" min="1" placeholder="How many">
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn" onclick="invTransfer(false)">Give to master</button>
+            <button class="btn-outline" onclick="invTransfer(true)">Take back</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mk-grid">
+        <div class="panel">
+          <h3>Add an item</h3>
+          <div class="member-sub" style="margin-bottom:12px;">
+            Only track what costs real money and runs out. Screws and anchors
+            are not worth a line — counting them wrecks the accuracy of
+            everything that is.
+          </div>
+          <div class="inv-form">
+            <input id="invNewName" class="full" type="text" placeholder="Name — e.g. Recessed outlet kit">
+            <select id="invNewCode"></select>
+            <input id="invNewReorder" type="number" min="0" placeholder="Warn me at">
+          </div>
+          <button class="btn" onclick="invCreate()">Add item</button>
+        </div>
+
+        <div class="panel">
+          <h3>Recent movements</h3>
+          <div id="invMoves"></div>
         </div>
       </div>
     </div>
@@ -1353,6 +1456,7 @@
     if(view === 'approvals') loadApprovals();
     if(view === 'reviews') loadReviews();
     if(view === 'marketing') loadMarketing();
+    if(view === 'inventory') loadInventory();
     if(view === 'settings') renderSettings();
   }
 
@@ -1936,6 +2040,188 @@
     });
 
     document.getElementById('detailTimeline').innerHTML = rows.join('');
+  }
+
+  // ---------------- INVENTORY ----------------
+  //
+  // Stock is a ledger, not a number that gets edited: every change is a
+  // movement with a direction and a reason. That is what makes "where did the
+  // three mounts go" answerable a month later.
+  //
+  // It also has places. Mounts sit in the warehouse and in each van, and one
+  // combined total would fire the low-stock warning while eight are sitting in
+  // somebody's truck.
+  let invData = null;
+  let invPriceList = null;   // the service codes an item can be tied to
+
+  async function loadInventory(){
+    const list = document.getElementById('invList');
+    try {
+      // The price list comes along because an item has to name the service
+      // that consumes it, and that has to be chosen from real codes rather
+      // than typed — a typo there means the stock silently never comes off.
+      const [invRes, priceRes] = await Promise.all([
+        fetch('/api/inventory', { headers: authHeaders() }),
+        fetch('/api/prices', { headers: authHeaders() }),
+      ]);
+      if(invRes.status === 401){ logout(); return; }
+
+      const data = await invRes.json();
+      if(!data.ok) throw new Error(data.error || 'Could not load inventory');
+
+      invData = data;
+      invPriceList = priceRes.ok ? await priceRes.json() : null;
+      renderInventory();
+    } catch (err) {
+      list.innerHTML = `<div class="empty">${esc(String(err.message || err))}</div>`;
+    }
+  }
+
+  function renderInventory(){
+    const s = invData.summary || {};
+    document.getElementById('invSummary').textContent =
+      `${s.lines || 0} items · ${money(s.value || 0)} on the shelf` +
+      ((s.low || 0) ? ` · ${s.low} running low` : '');
+
+    const badge = document.getElementById('inventoryBadge');
+    badge.style.display = (s.low || 0) ? 'block' : 'none';
+
+    const rows = invData.items || [];
+    document.getElementById('invList').innerHTML = rows.length
+      ? rows.map(invRow).join('')
+      : '<div class="empty">Nothing tracked yet. Add an item below.</div>';
+
+    // The same item list feeds three forms; building it once keeps them honest.
+    const options = rows.filter(i => i.active)
+      .map(i => `<option value="${i.id}">${esc(i.name)} — ${i.onHand} on hand</option>`).join('');
+    document.getElementById('invRecvItem').innerHTML = options;
+    document.getElementById('invMoveItem').innerHTML = options;
+
+    document.getElementById('invMoveMaster').innerHTML =
+      (invData.masters || []).map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join('')
+      || '<option value="">No active masters</option>';
+
+    // Which service consumes this part. Chosen from the price list rather than
+    // typed, because a typo here means the stock silently never comes off.
+    const used = new Set(rows.filter(i => i.active).map(i => i.consumedBy));
+    const codes = Object.values((invPriceList && invPriceList.groups) || {}).flat()
+      .filter(o => o.price > 0 && !used.has(o.id));
+    document.getElementById('invNewCode').innerHTML =
+      '<option value="">Not tied to a service</option>' +
+      codes.map(o => `<option value="${esc(o.id)}">Used by: ${esc(o.label)}</option>`).join('');
+
+    renderInvMoves();
+  }
+
+  function invRow(item){
+    const where = (item.byHolder || [])
+      .map(h => `<span class="inv-where">${esc(h.name)}: ${h.qty}</span>`).join('');
+
+    const qtyClass = item.onHand < 0 ? 'neg' : (item.low ? 'low' : '');
+
+    return `
+      <div class="inv-row ${item.low ? 'low' : ''} ${item.active ? '' : 'off'}">
+        <div class="inv-main">
+          <div class="inv-name">${esc(item.name)}${item.active ? '' : ' · not tracked'}</div>
+          <div class="inv-sub">
+            ${where || '<span class="inv-where">nowhere yet</span>'}
+            ${item.avgCost ? ` · ${money(item.avgCost)} each` : ' · <span style="opacity:.8;">cost not known yet</span>'}
+            ${item.consumedBy ? '' : ' · <span style="opacity:.8;">not linked to a service, will never come off by itself</span>'}
+          </div>
+        </div>
+        <div class="inv-qty ${qtyClass}">${item.onHand}</div>
+        <div class="inv-actions">
+          <button class="row-actions-btn" onclick="invAdjust(${item.id}, '${esc(item.name).replace(/'/g, "\\'")}')">Correct</button>
+        </div>
+      </div>`;
+  }
+
+  function renderInvMoves(){
+    const el = document.getElementById('invMoves');
+    const moves = invData.moves || [];
+    if(!moves.length){ el.innerHTML = '<div class="member-sub">No movements yet.</div>'; return; }
+
+    el.innerHTML = moves.map(m => {
+      const when = (m.created_at || '').slice(5, 16);
+      const detail = m.kind === 'used' ? `job #${m.booking_id}`
+                   : m.kind === 'purchase' ? (m.unit_cost_cents ? money(m.unit_cost_cents / 100) + ' each' : '')
+                   : (m.note || '');
+      return `
+        <div class="inv-move ${esc(m.kind)}">
+          <div>
+            <span class="inv-move-kind">${esc(m.kind)}</span>
+            <span style="color:var(--ink-soft);"> ${esc(m.item_name || '')}</span>
+            ${detail ? `<div class="inv-sub">${esc(detail)} · ${esc(when)}</div>` : `<div class="inv-sub">${esc(when)}</div>`}
+          </div>
+          <div style="font-weight:700; white-space:nowrap;">${m.kind === 'used' ? '−' : ''}${m.qty}</div>
+        </div>`;
+    }).join('');
+  }
+
+  async function invPost(payload, what){
+    const res = await fetch('/api/inventory', {
+      method: 'POST', headers: authHeaders(true), body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!data.ok){ alert(data.error || `Could not ${what}.`); return false; }
+    await loadInventory();
+    return true;
+  }
+
+  async function invReceive(){
+    const itemId = Number(document.getElementById('invRecvItem').value);
+    const qty = Number(document.getElementById('invRecvQty').value);
+    const totalCost = Number(String(document.getElementById('invRecvCost').value).replace(/[^0-9.]/g, ''));
+    const note = document.getElementById('invRecvNote').value.trim();
+
+    if(!itemId || !qty){ alert('Pick an item and how many arrived.'); return; }
+    if(!Number.isFinite(totalCost)){ alert('Enter what the delivery cost in total.'); return; }
+
+    if(await invPost({ action:'receive', itemId, qty, totalCost, note }, 'record that delivery')){
+      document.getElementById('invRecvQty').value = '';
+      document.getElementById('invRecvCost').value = '';
+      document.getElementById('invRecvNote').value = '';
+    }
+  }
+
+  async function invTransfer(back){
+    const itemId = Number(document.getElementById('invMoveItem').value);
+    const qty = Number(document.getElementById('invMoveQty').value);
+    const toMasterId = Number(document.getElementById('invMoveMaster').value);
+
+    if(!itemId || !qty || !toMasterId){ alert('Pick an item, a master and a quantity.'); return; }
+
+    if(await invPost({ action:'transfer', itemId, qty, toMasterId, toBusiness: !!back }, 'move that stock')){
+      document.getElementById('invMoveQty').value = '';
+    }
+  }
+
+  async function invCreate(){
+    const name = document.getElementById('invNewName').value.trim();
+    const consumedBy = document.getElementById('invNewCode').value;
+    const reorderPoint = Number(document.getElementById('invNewReorder').value || 0);
+
+    if(!name){ alert('Give the item a name.'); return; }
+
+    if(await invPost({ action:'createItem', name, consumedBy, reorderPoint }, 'add that item')){
+      document.getElementById('invNewName').value = '';
+      document.getElementById('invNewReorder').value = '';
+    }
+  }
+
+  async function invAdjust(itemId, name){
+    const raw = prompt(
+      `Correcting "${name}".\n\n` +
+      `How many are really there, compared with what the system says?\n` +
+      `Enter a positive number if you found more, negative if some are gone.`,
+      ''
+    );
+    if(raw === null) return;
+    const qty = Number(raw);
+    if(!Number.isInteger(qty) || qty === 0){ alert('Enter a whole number, positive or negative.'); return; }
+
+    const note = prompt('Why? (broken, miscounted, lost — this is the only record of it)', '') || '';
+    await invPost({ action:'adjust', itemId, qty, note }, 'record that correction');
   }
 
   // ---------------- MARKETING ----------------
