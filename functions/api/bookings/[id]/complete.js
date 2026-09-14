@@ -3,6 +3,7 @@
 // client a link to their receipt.
 import { getUserFromRequest } from '../../../_lib/auth.js';
 import { sendSms } from '../../../_lib/sms.js';
+import { masterPayoutForBooking } from '../../../_lib/payout.js';
 
 const BUSINESS_NAME = 'Mount It Right';
 
@@ -46,21 +47,23 @@ export async function onRequestPost({ request, env, params }) {
     ? booking.actual_total
     : (actualTotal != null ? actualTotal : booking.total_price);
 
-  // The master's cut lives in one place: the businesses table. It used to be
-  // hardcoded here as 0.30 while the Stripe split used master_share_percent
-  // (40), so the payout recorded in the database never matched the money
-  // actually transferred. MASTER_COMMISSION_RATE still overrides, if set.
-  const business = await env.DB.prepare(`SELECT master_share_percent FROM businesses WHERE name = ?`)
-    .bind(BUSINESS_NAME).first();
-  const rate = env.MASTER_COMMISSION_RATE
-    ? parseFloat(env.MASTER_COMMISSION_RATE)
-    : (business?.master_share_percent != null ? business.master_share_percent / 100 : 0.40);
+  // The master's cut. Labour lines at the normal rate, work the master added
+  // on site at the higher one, parts at nothing — a bracket is stock the
+  // business bought, not a job someone did. Bookings taken before line items
+  // existed fall back to the old flat percentage.
+  const business = await env.DB.prepare(
+    `SELECT master_share_percent, onsite_master_share_percent FROM businesses WHERE name = ?`
+  ).bind(BUSINESS_NAME).first();
 
   // If the payout split already ran, it recorded the exact cents Stripe sent
-  // the master. That is the truth — prefer it over recomputing from a rate.
-  const earning = booking.master_cents != null
-    ? Math.round(booking.master_cents / 100)
-    : Math.round(finalTotal * rate);
+  // the master. That is the truth — prefer it over recomputing anything.
+  let earning;
+  if (booking.master_cents != null) {
+    earning = Math.round(booking.master_cents / 100);
+  } else {
+    const payout = await masterPayoutForBooking(env, { ...booking, actual_total: finalTotal }, business);
+    earning = Math.round(payout.masterCents / 100);
+  }
 
   await env.DB.prepare(
     `UPDATE bookings
