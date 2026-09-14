@@ -312,6 +312,30 @@
   .inv-move.purchase .inv-move-kind{ color:var(--level); }
   .inv-move.adjust .inv-move-kind{ color:var(--warn); }
 
+  /* ---------- money breakdown ---------- */
+  .pl{ background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:20px 22px; margin-bottom:20px; }
+  .pl-head{ display:flex; align-items:baseline; justify-content:space-between; gap:14px; margin-bottom:14px; flex-wrap:wrap; }
+  .pl-title{ font-family:var(--display); font-size:15px; font-weight:700; }
+  .pl-margin{ font-size:12.5px; color:var(--ink-soft); }
+  .pl-row{ display:flex; align-items:center; gap:12px; padding:8px 0; font-size:13.5px; }
+  .pl-row + .pl-row{ border-top:1px solid var(--line); }
+  .pl-label{ flex:1; color:var(--ink-soft); }
+  .pl-amt{ font-variant-numeric:tabular-nums; font-weight:600; white-space:nowrap; }
+  .pl-row.out .pl-amt{ color:var(--danger); }
+  .pl-row.in .pl-amt{ font-weight:800; font-size:15px; }
+  .pl-row.kept{ border-top:2px solid var(--ink); margin-top:6px; padding-top:12px; }
+  .pl-row.kept .pl-label{ color:var(--ink); font-weight:700; }
+  .pl-row.kept .pl-amt{ font-weight:800; font-size:17px; }
+  .pl-row.kept.bad .pl-amt{ color:var(--danger); }
+  .pl-note{ font-size:11.5px; color:var(--ink-soft); margin-top:12px; line-height:1.5; }
+  .pl-warn{
+    margin-top:12px; padding:10px 13px; border-radius:10px;
+    background:var(--warn-soft); color:var(--warn); font-size:12px; font-weight:600; line-height:1.5;
+  }
+  .pl-bar{ display:flex; height:8px; border-radius:100px; overflow:hidden; margin-bottom:16px; background:var(--mist); }
+  .pl-bar span{ display:block; height:100%; }
+
+
 
   /* ---------- marketing ---------- */
   .mk-range{ display:flex; gap:7px; flex-wrap:wrap; }
@@ -1158,6 +1182,11 @@
             <div id="detailApproval"></div>
           </div>
 
+          <div class="detail-section" id="detailMoneyWrap" style="display:none;">
+            <div class="detail-label">Where the money went</div>
+            <div id="detailMoney"></div>
+          </div>
+
           <div class="detail-section" id="detailRatingWrap" style="display:none;">
             <div class="detail-label">Customer rating</div>
             <div id="detailRating"></div>
@@ -1219,11 +1248,13 @@
         <button class="btn-outline" onclick="clearFinanceFilters()">Clear filters</button>
       </div>
 
+      <div id="financeProfit"></div>
+
       <div class="stats">
         <div class="stat-card"><div class="lbl">Jobs</div><div class="val" id="payoutJobs">0</div></div>
         <div class="stat-card"><div class="lbl">Revenue</div><div class="val mono" id="payoutRevenue">$0</div></div>
         <div class="stat-card"><div class="lbl">Paid to masters</div><div class="val mono" id="payoutPaid">$0</div></div>
-        <div class="stat-card"><div class="lbl">Kept by business</div><div class="val mono" id="payoutKept">$0</div></div>
+        <div class="stat-card"><div class="lbl">Revenue less master</div><div class="val mono" id="payoutKept">$0</div></div>
       </div>
 
       <div class="panel">
@@ -1448,7 +1479,7 @@
     document.getElementById('view-' + view).classList.add('active');
     closeSidebar();
     if(view !== 'messages') disconnectChatSocket();
-    if(view === 'finance') renderFinance();
+    if(view === 'finance'){ renderFinance(); renderFinanceProfit(); }
     if(view === 'analytics') renderAnalytics();
     if(view === 'time-breakdown') renderTimeBreakdownPage();
     if(view === 'messages'){ showMessagesList(); loadMessagesInbox(); checkForNewMessages(); }
@@ -2040,6 +2071,108 @@
     });
 
     document.getElementById('detailTimeline').innerHTML = rows.join('');
+  }
+
+  // ---------------- WHERE THE MONEY WENT ----------------
+  //
+  // Revenue minus the master was never profit, though Finance called it that.
+  // Out of what was left still had to come the bracket, Stripe's cut, the
+  // platform's five percent and the advertising that bought the customer.
+  // Every one of those is now recorded, so the last line can finally be the
+  // money that actually stayed.
+  function plRow(label, amount, opts = {}){
+    const cls = opts.kept ? `pl-row kept${amount < 0 ? ' bad' : ''}` : `pl-row ${opts.out ? 'out' : 'in'}`;
+    const shown = opts.out ? `− ${money(Math.abs(amount))}` : money(amount);
+    return `
+      <div class="${cls}">
+        <span class="pl-label">${esc(label)}${opts.hint ? ` <span style="opacity:.75;">${esc(opts.hint)}</span>` : ''}</span>
+        <span class="pl-amt">${shown}</span>
+      </div>`;
+  }
+
+  /// A one-line picture of the split, so the shape of a job reads before any
+  /// of the numbers do.
+  function plBar(d){
+    const parts = [
+      ['var(--signal)', d.master_pay],
+      ['var(--warn)', d.parts],
+      ['var(--danger)', d.advertising],
+      ['var(--ink-soft)', d.platform + d.cardFee],
+      ['var(--level)', Math.max(0, d.business)],
+    ];
+    const total = parts.reduce((sum, [, v]) => sum + v, 0) || 1;
+    return `<div class="pl-bar">${parts
+      .filter(([, v]) => v > 0)
+      .map(([c, v]) => `<span style="width:${(v / total * 100).toFixed(2)}%; background:${c};"></span>`)
+      .join('')}</div>`;
+  }
+
+  function plBlock(d, title, opts = {}){
+    const gaps = [];
+    if(opts.jobsWithoutItems) gaps.push(`${opts.jobsWithoutItems} job${opts.jobsWithoutItems === 1 ? '' : 's'} predate line items, so their parts show as free`);
+    if(opts.jobsWithoutPartCost) gaps.push(`${opts.jobsWithoutPartCost} with parts nobody has costed yet`);
+    if(opts.single && !d.partsPriced && d.parts === 0) gaps.push('no cost recorded for the parts on this job');
+
+    return `
+      <div class="pl">
+        <div class="pl-head">
+          <span class="pl-title">${esc(title)}</span>
+          <span class="pl-margin">${
+            d.marginPercent == null ? '' : `${d.marginPercent.toFixed(0)}% of the money charged stayed with the business`
+          }</span>
+        </div>
+        ${plBar(d)}
+        ${plRow('Charged to the customer', d.revenue)}
+        ${plRow('Master', d.master_pay, { out:true })}
+        ${plRow('Parts — mounts, outlet kits', d.parts, { out:true })}
+        ${plRow('Advertising', d.advertising, { out:true, hint: d.advertising ? 'channel average' : '' })}
+        ${plRow('Sketrix 5%', d.platform, { out:true })}
+        ${plRow('Card processing', d.cardFee, { out:true })}
+        ${plRow('Stayed with the business', d.business, { kept:true })}
+        ${gaps.length ? `<div class="pl-warn">Reads better than it is: ${gaps.join('; ')}.</div>` : ''}
+        <div class="pl-note">
+          Advertising is a channel's monthly spend divided by the jobs that
+          channel brought in that month — an average, not a figure about this
+          particular customer.
+        </div>
+      </div>`;
+  }
+
+  async function renderFinanceProfit(){
+    const box = document.getElementById('financeProfit');
+    try {
+      const res = await fetch('/api/economics?days=90', { headers: authHeaders() });
+      if(res.status === 401){ logout(); return; }
+      const data = await res.json();
+      if(!data.ok || !data.totals.jobs){ box.innerHTML = ''; return; }
+
+      box.innerHTML = plBlock(data.totals, `Last 90 days · ${data.totals.jobs} completed jobs`, {
+        jobsWithoutItems: data.totals.jobsWithoutItems,
+        jobsWithoutPartCost: data.totals.jobsWithoutPartCost,
+      });
+    } catch {
+      box.innerHTML = '';
+    }
+  }
+
+  async function loadJobMoney(bookingId){
+    const wrap = document.getElementById('detailMoneyWrap');
+    wrap.style.display = 'none';
+    try {
+      const res = await fetch(`/api/economics?bookingId=${bookingId}`, { headers: authHeaders() });
+      if(!res.ok) return;
+      const data = await res.json();
+      const job = (data.jobs || [])[0];
+      if(!data.ok || !job) return;
+
+      // A different job may have loaded while this was in flight.
+      if(detailBookingId !== bookingId) return;
+
+      wrap.style.display = 'block';
+      document.getElementById('detailMoney').innerHTML = plBlock(job, `Job #${job.id}`, { single: true });
+    } catch {
+      // A missing breakdown is not worth breaking the job page over.
+    }
   }
 
   // ---------------- INVENTORY ----------------
@@ -2790,6 +2923,7 @@
     switchView('detail');
     loadMessages(id);
     loadApprovalForDetail(id);
+    loadJobMoney(id);
   }
 
   // ---------------- CHAT ----------------
