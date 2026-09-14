@@ -12,8 +12,14 @@ import { loadPrices, additionalTvDiscount } from '../_lib/pricing.js';
 // instead of 190 should be stopped before a customer is quoted it.
 const MAX_PRICE = 2000;
 
-export async function onRequestGet({ env }) {
+export async function onRequestGet({ request, env }) {
   const { rows } = await loadPrices(env);
+
+  // What a part cost us is nobody's business but ours, and this endpoint is
+  // public so the booking form can read it. An admin session gets the cost
+  // column as well, which is what the price editor needs.
+  const user = await getUserFromRequest(request, env);
+  const isAdmin = !!user && user.role === 'admin';
 
   // Grouped the way the booking form asks its questions, in display order.
   const groups = {};
@@ -23,6 +29,13 @@ export async function onRequestGet({ env }) {
       label: row.label,
       price: row.price,
       scope: row.scope,
+      // 'labor' or 'material'. The form doesn't care; the payout does, and
+      // the admin editor shows it.
+      kind: row.kind || 'labor',
+      // Which TV sizes this option is offered for. Empty means all of them —
+      // a heavy-duty bracket has no business appearing under a 43-inch set.
+      requiresSize: row.requires_size ? row.requires_size.split(',') : null,
+      ...(isAdmin ? { cost: row.cost || 0 } : {}),
     });
   }
 
@@ -33,7 +46,11 @@ export async function onRequestGet({ env }) {
   }, {
     // Short, because the admin edits a price and immediately wants to see it
     // in the booking form.
-    headers: { 'Cache-Control': 'public, max-age=30' },
+    headers: {
+      // Private for an admin: their copy carries cost prices, and a shared
+      // cache would hand those to the next visitor of the booking form.
+      'Cache-Control': isAdmin ? 'private, no-store' : 'public, max-age=30',
+    },
   });
 }
 
@@ -71,15 +88,38 @@ export async function onRequestPost({ request, env }) {
       return Response.json({ ok: false, error: 'An option needs a name customers can read.' }, { status: 400 });
     }
 
-    if (price !== byCode[code].price || label !== byCode[code].label) {
-      updates.push({ code, price, label });
+    // What the part costs us. Optional — an option nobody has priced yet keeps
+    // whatever it had, rather than being quietly zeroed by a form that didn't
+    // send the field.
+    let cost = byCode[code].cost || 0;
+    if (item.cost != null) {
+      cost = Number(item.cost);
+      if (!Number.isInteger(cost) || cost < 0 || cost > MAX_PRICE) {
+        return Response.json(
+          { ok: false, error: `"${byCode[code].label}" — a cost must be a whole number between 0 and ${MAX_PRICE}.` },
+          { status: 400 }
+        );
+      }
+      if (cost > price) {
+        return Response.json(
+          { ok: false, error: `"${byCode[code].label}" costs more than it sells for. Check the numbers.` },
+          { status: 400 }
+        );
+      }
+    }
+
+    const kind = item.kind === 'material' ? 'material' : (item.kind === 'labor' ? 'labor' : byCode[code].kind || 'labor');
+
+    if (price !== byCode[code].price || label !== byCode[code].label
+        || cost !== (byCode[code].cost || 0) || kind !== (byCode[code].kind || 'labor')) {
+      updates.push({ code, price, label, cost, kind });
     }
   }
 
   for (const u of updates) {
     await env.DB.prepare(
-      `UPDATE service_prices SET price = ?, label = ?, updated_at = datetime('now') WHERE code = ?`
-    ).bind(u.price, u.label, u.code).run();
+      `UPDATE service_prices SET price = ?, label = ?, cost = ?, kind = ?, updated_at = datetime('now') WHERE code = ?`
+    ).bind(u.price, u.label, u.cost, u.kind, u.code).run();
   }
 
   let discountChanged = false;
