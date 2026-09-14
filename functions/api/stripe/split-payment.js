@@ -15,6 +15,7 @@
 // a half-finished split can never pay anyone twice.
 import { getUserFromRequest } from '../../_lib/auth.js';
 import { stripeRequest } from '../../_lib/stripe.js';
+import { masterPayoutForBooking } from '../../_lib/payout.js';
 
 // Only one business exists today. When a second one arrives, bookings get a
 // business_id column and this lookup follows it instead of a hardcoded name.
@@ -74,12 +75,20 @@ export async function onRequestPost({ request, env }) {
   }
 
   const totalCents = intent.amount_received;
-  const masterCents = Math.round(totalCents * (business.master_share_percent / 100));
-  const businessCents = Math.round(totalCents * (business.business_share_percent / 100));
-  // Whatever is left over is Sketrix's, and it absorbs any rounding drift so
-  // the three shares always add up to exactly the amount charged.
-  const platformCents = totalCents - masterCents - businessCents;
 
+  // The master is paid for work, not for parts. Their cut comes from the
+  // labour lines of this job — at the higher rate for anything they added on
+  // site — so the margin on a bracket the business bought stays with the
+  // business. Jobs from before line items existed keep the old flat split.
+  const payout = await masterPayoutForBooking(env, booking, business);
+  const masterCents = Math.min(payout.masterCents, totalCents);
+
+  // The business takes what is left after the master and the platform, rather
+  // than its own percentage of the gross. With parts in the mix those two are
+  // no longer the same number, and only one of them can be right: the three
+  // shares have to add up to exactly what the customer paid.
+  const platformCents = Math.round(totalCents * (100 - business.master_share_percent - business.business_share_percent) / 100);
+  const businessCents = totalCents - masterCents - platformCents;
   // The platform's slice has to cover Stripe's fee. If the configured
   // percentages don't leave enough, stop before sending anything rather
   // than transferring one share and failing on the other.
