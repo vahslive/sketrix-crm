@@ -14,13 +14,19 @@
 //     discount always lands in the customer's favour
 //   · add-ons are charged once per booking, whatever the number of televisions
 //   · the result is rounded to whole dollars
+//
+// What is new is that the same calculation also emits LINE ITEMS, and each
+// line knows whether it is labour or a part. That distinction is money: the
+// master's percentage is pay for work, and paying it on a bracket the business
+// bought means paying a wage on stock. On a $99 mount costing $50, the old
+// split handed the master $40 of the $50 margin.
 
 const TV_KEYS = ['dismount', 'size', 'bracket', 'wall', 'wires'];
 
 /** Loads the active price list as a { code: {price, scope, ...} } map. */
 export async function loadPrices(env) {
   const { results } = await env.DB.prepare(
-    `SELECT group_key, code, label, price, scope, sort_order
+    `SELECT group_key, code, label, price, scope, sort_order, kind, cost, requires_size
      FROM service_prices WHERE active = 1 ORDER BY group_key, sort_order`
   ).all();
 
@@ -51,16 +57,19 @@ export function priceOneTv(tv, byCode) {
 }
 
 /**
- * The total for a booking.
+ * The total for a booking, plus the lines that produced it.
+ *
+ * Lines are in cents. The discount on additional televisions is applied to
+ * each of that TV's lines rather than added as a separate negative row, so
+ * the lines always sum to exactly the amount charged and a receipt never has
+ * to explain a mysterious deduction.
  *
  * @param {Array<object>} tvs     one entry per television, each holding the
  *                                selected option codes
  * @param {Array<string>} addons  add-on codes, charged once for the booking
  * @param {object} byCode         price list from loadPrices()
  * @param {number} discountPct    discount on each television after the dearest
- * @returns {{ total:number, lines:Array }} the total plus the line items that
- *          produced it — worth keeping, because a receipt that just says $257
- *          invites an argument no one can settle afterwards.
+ * @returns {{ total:number, items:Array, lines:Array }}
  */
 export function computeTotal(tvs, addons, byCode, discountPct) {
   const list = Array.isArray(tvs) && tvs.length ? tvs : [];
@@ -68,28 +77,86 @@ export function computeTotal(tvs, addons, byCode, discountPct) {
     .map((tv) => ({ tv, price: priceOneTv(tv, byCode) }))
     .sort((a, b) => b.price - a.price);
 
+  const items = [];
   const lines = [];
-  let total = 0;
+  let totalCents = 0;
 
   priced.forEach((entry, index) => {
-    const discounted = index === 0 ? entry.price : entry.price * (1 - discountPct / 100);
-    total += discounted;
+    const discount = index === 0 ? 0 : discountPct;
+    const factor = 1 - discount / 100;
+
+    for (const key of TV_KEYS) {
+      const code = entry.tv?.[key];
+      if (!code) continue;
+      const option = byCode[code];
+      if (!option || option.price === 0) continue;   // "I already have one" is not a line
+
+      const priceCents = Math.round(option.price * 100 * factor);
+      totalCents += priceCents;
+      items.push({
+        code,
+        label: option.label,
+        kind: option.kind === 'material' ? 'material' : 'labor',
+        priceCents,
+        // Cost is a snapshot: what this part cost us on the day, so a later
+        // price change never rewrites the margin on jobs already done.
+        costCents: Math.round((option.cost || 0) * 100),
+        discountPercent: discount,
+        tvIndex: index + 1,
+      });
+    }
+
     lines.push({
       kind: 'tv',
       index: index + 1,
       options: TV_KEYS.map((k) => entry.tv?.[k]).filter(Boolean),
       price: entry.price,
-      discountPercent: index === 0 ? 0 : discountPct,
-      charged: Math.round(discounted),
+      discountPercent: discount,
+      charged: Math.round(entry.price * factor),
     });
   });
 
   for (const code of addons || []) {
     const option = byCode[code];
     if (!option) continue;
-    total += option.price;
+    const priceCents = Math.round(option.price * 100);
+    totalCents += priceCents;
+    items.push({
+      code,
+      label: option.label,
+      kind: option.kind === 'material' ? 'material' : 'labor',
+      priceCents,
+      costCents: Math.round((option.cost || 0) * 100),
+      discountPercent: 0,
+      tvIndex: null,
+    });
     lines.push({ kind: 'addon', code, label: option.label, charged: option.price });
   }
 
-  return { total: Math.round(total), lines };
+  return { total: Math.round(totalCents / 100), totalCents, items, lines };
+}
+
+/**
+ * Writes the line items for a booking, replacing anything previously recorded
+ * as coming from the booking itself. Items added on site are left alone —
+ * recalculating a booking must never quietly delete the soundbar the customer
+ * agreed to at their door.
+ */
+export async function saveBookingItems(env, bookingId, items) {
+  const statements = [
+    env.DB.prepare(`DELETE FROM booking_items WHERE booking_id = ? AND source = 'booking'`).bind(bookingId),
+  ];
+
+  for (const item of items) {
+    statements.push(env.DB.prepare(
+      `INSERT INTO booking_items
+        (booking_id, code, label, kind, price_cents, cost_cents, discount_percent, tv_index, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'booking')`
+    ).bind(
+      bookingId, item.code, item.label, item.kind,
+      item.priceCents, item.costCents, item.discountPercent, item.tvIndex
+    ));
+  }
+
+  if (statements.length > 1) await env.DB.batch(statements);
 }
