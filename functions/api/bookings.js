@@ -5,7 +5,7 @@ import { getUserFromRequest } from '../_lib/auth.js';
 import { sendSms, sendSmsToMany } from '../_lib/sms.js';
 import { sendEmail } from '../_lib/email.js';
 import { sendPushToUsers, activeStaffIds } from '../_lib/push.js';
-import { loadPrices, additionalTvDiscount, computeTotal } from '../_lib/pricing.js';
+import { loadPrices, additionalTvDiscount, computeTotal, saveBookingItems } from '../_lib/pricing.js';
 
 function newReceiptToken() {
   return [...crypto.getRandomValues(new Uint8Array(16))]
@@ -82,11 +82,13 @@ export async function onRequestPost({ request, env }) {
   // be priced by hand for reasons no price list knows about, and whoever typed
   // it is signed in as an admin.
   let finalTotal = Number(total) || 0;
+  let computedItems = null;
   if (Array.isArray(tvs) && tvs.length) {
     try {
       const { byCode } = await loadPrices(env);
       const discount = await additionalTvDiscount(env);
       const computed = computeTotal(tvs, addons, byCode, discount);
+      computedItems = computed.items;
 
       if (!admin || computed.total > 0) {
         if (computed.total !== finalTotal) {
@@ -120,6 +122,19 @@ export async function onRequestPost({ request, env }) {
   ).run();
 
   const bookingId = result.meta.last_row_id;
+
+  // The lines this price is made of. Written after the booking rather than
+  // inside its insert, and failing quietly: a booking that saved is a customer
+  // expecting an installer, and it must not be lost because a receipt detail
+  // could not be recorded. Without items the job simply behaves as it did
+  // before — one figure, the old flat payout.
+  if (computedItems && computedItems.length) {
+    try {
+      await saveBookingItems(env, bookingId, computedItems);
+    } catch (err) {
+      console.error('Could not save line items for booking', bookingId, err);
+    }
+  }
 
   // A template variable must always carry a value — an empty one is how a
   // client ends up reading "confirmed for  ." So the date and time collapse
