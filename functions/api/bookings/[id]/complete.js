@@ -4,6 +4,7 @@
 import { getUserFromRequest } from '../../../_lib/auth.js';
 import { sendSms } from '../../../_lib/sms.js';
 import { masterPayoutForBooking } from '../../../_lib/payout.js';
+import { consumeForBooking, holderOf } from '../../../_lib/inventory.js';
 
 const BUSINESS_NAME = 'Mount It Right';
 
@@ -71,6 +72,17 @@ export async function onRequestPost({ request, env, params }) {
          payment_method = ?, actual_total = ?, master_earning = ?
      WHERE id = ?`
   ).bind(paymentMethod, finalTotal, earning, params.id).run();
+
+  // What the job actually used comes off the master's van. The master types
+  // nothing: the lines of the job already say which parts went into the wall.
+  //
+  // Wrapped, and never fatal. A finished job that can't be closed because the
+  // stock count disagrees is how a stock system gets abandoned in week one.
+  try {
+    await consumeForBooking(env, booking, holderOf(user));
+  } catch (err) {
+    console.error('Could not record stock used on booking', params.id, err);
+  }
 
   if (booking.phone && booking.sms_consent) {
     await sendSms(
